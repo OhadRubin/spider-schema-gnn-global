@@ -5,9 +5,9 @@ import torch
 from allennlp.modules import Attention, FeedForward
 from allennlp.nn import Activation, util
 
-from allennlp.state_machines.states.grammar_based_state import GrammarBasedState
-from allennlp.state_machines.transition_functions import BasicTransitionFunction
-from allennlp.state_machines.transition_functions.linking_transition_function import LinkingTransitionFunction
+from allennlp_semparse.state_machines.states.grammar_based_state import GrammarBasedState
+from state_machines.transition_functions.basic_transition_function import BasicTransitionFunction
+from allennlp_semparse.state_machines.transition_functions.linking_transition_function import LinkingTransitionFunction
 from overrides import overrides
 from torch.nn import Linear
 

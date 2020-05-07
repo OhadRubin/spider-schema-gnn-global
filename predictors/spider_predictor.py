@@ -4,7 +4,8 @@ from allennlp.common.util import JsonDict, sanitize
 from allennlp.data import DatasetReader, Instance
 from allennlp.models import Model
 from allennlp.predictors.predictor import Predictor
-
+from dataset_readers.spider import *
+from models.semantic_parsing.spider_parser import *
 
 @Predictor.register("spider")
 class WikiTablesParserPredictor(Predictor):
@@ -15,6 +16,7 @@ class WikiTablesParserPredictor(Predictor):
     def predict_instance(self, instance: Instance) -> JsonDict:
         json_output = {}
         outputs = self._model.forward_on_instance(instance)
+        # print(outputs)
         predicted_sql_query = outputs['predicted_sql_query'].replace('\n', ' ')
         if predicted_sql_query == '':
             # line must not be empty for the evaluator to consider it

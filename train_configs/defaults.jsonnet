@@ -9,48 +9,55 @@ local dataset_path = "dataset/";
     "tables_file": dataset_path + "tables.json",
     "dataset_path": dataset_path + "database",
     "lazy": false,
+    "cache_directory": "cache/train",
     "keep_if_unparsable": false,
-    "loading_limit": -1
+    "max_instances": 10,
   },
   "validation_dataset_reader": {
     "type": "spider",
     "tables_file": dataset_path + "tables.json",
     "dataset_path": dataset_path + "database",
+    "cache_directory": "cache/val",
     "lazy": false,
     "keep_if_unparsable": true,
-    "loading_limit": -1
+    "max_instances": 10,
   },
   "train_data_path": dataset_path + "train_spider.json",
   "validation_data_path": dataset_path + "dev.json",
   "model": {
     "type": "spider",
+    "world_encoder":{
+      "type":"gnn",
+        "encoder": {
+          "type": "lstm",
+          "input_size": 400,
+          "hidden_size": 400,
+          "bidirectional": true,
+          "num_layers": 1
+        },
+        "entity_encoder": {
+            "type": "boe",
+            "embedding_dim": 200,
+            "averaged": true
+          },
+        "question_embedder": {"token_embedders":{
+              "tokens": {
+                "type": "embedding",
+                "embedding_dim": 200,
+                "trainable": true
+              }
+        },
+
+            },
+      "action_embedding_dim": 200,
+      "decoder_use_graph_entities": true,
+      "gnn_timesteps": 3,
+      "pruning_gnn_timesteps": 3,
+      "parse_sql_on_decoding": true,
+      "use_neighbor_similarity_for_linking": true,
+      "dropout": 0.5,
+    },
     "dataset_path": dataset_path,
-    "parse_sql_on_decoding": true,
-    "gnn": true,
-    "gnn_timesteps": 3,
-    "decoder_self_attend": true,
-    "decoder_use_graph_entities": true,
-    "use_neighbor_similarity_for_linking": true,
-    "question_embedder": {
-      "tokens": {
-        "type": "embedding",
-        "embedding_dim": 200,
-        "trainable": true
-      }
-    },
-    "action_embedding_dim": 200,
-    "encoder": {
-      "type": "lstm",
-      "input_size": 400,
-      "hidden_size": 400,
-      "bidirectional": true,
-      "num_layers": 1
-    },
-    "entity_encoder": {
-      "type": "boe",
-      "embedding_dim": 200,
-      "averaged": true
-    },
     "decoder_beam_search": {
       "beam_size": 10
     },
@@ -60,24 +67,26 @@ local dataset_path = "dataset/";
     "past_attention": {"type": "dot_product"},
     "dropout": 0.5
   },
-  "iterator": {
-    "type": "basic",
+  "data_loader": {
+    // "type": "basic",
     "batch_size" : 15
+    // "batch_sampler" :{}
+    
   },
-  "validation_iterator": {
-    "type": "basic",
-    "batch_size" : 1
-  },
+  // "validation_dataloader": {
+  //   "batch_size" : 1,
+  // },
   "trainer": {
     "num_epochs": 100,
     "cuda_device": 0,
-    "patience": 20,
+    "patience": 50,
     "validation_metric": "+sql_match",
     "optimizer": {
       "type": "adam",
       "lr": 0.001,
       "weight_decay": 5e-4
     },
-    "num_serialized_models_to_keep": 2
+    // "num_serialized_models_to_keep": 
+    "checkpointer": {"num_serialized_models_to_keep": 2},
   }
 }

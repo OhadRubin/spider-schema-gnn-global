@@ -1,0 +1,89 @@
+{
+  "data_loader": {
+    "batch_size": 15
+  },
+  "trainer": {
+    "checkpointer": {
+      "num_serialized_models_to_keep": 2
+    },
+    "cuda_device": 0,
+    "num_epochs": 100,
+    "optimizer": {
+      "lr": 0.001,
+      "type": "adam",
+      "weight_decay": 0.0005
+    },
+    "patience": 50,
+    "validation_metric": "+sql_match"
+  },
+  "validation_data_path": "dataset/dev.json",
+  "random_seed": 5,
+  "validation_dataset_reader": {
+    "cache_directory": "cache/val",
+    "dataset_path": "dataset/database",
+    "keep_if_unparsable": true,
+    "lazy": false,
+    "max_instances": 10,
+    "tables_file": "dataset/tables.json",
+    "type": "spider"
+  },
+  "model": {
+    "dataset_path": "dataset/",
+    "decoder_beam_search": {
+      "beam_size": 10
+    },
+    "dropout": 0.5,
+    "input_attention": {
+      "type": "dot_product"
+    },
+    "max_decoding_steps": 100,
+    "past_attention": {
+      "type": "dot_product"
+    },
+    "training_beam_size": 1,
+    "type": "spider",
+    "world_encoder": {
+      "action_embedding_dim": 200,
+      "decoder_use_graph_entities": true,
+      "dropout": 0.5,
+      "encoder": {
+        "bidirectional": true,
+        "hidden_size": 400,
+        "input_size": 400,
+        "num_layers": 1,
+        "type": "lstm"
+      },
+      "entity_encoder": {
+        "averaged": true,
+        "embedding_dim": 200,
+        "type": "boe"
+      },
+      "gnn_timesteps": 3,
+      "parse_sql_on_decoding": true,
+      "pruning_gnn_timesteps": 3,
+      "question_embedder": {
+        "token_embedders": {
+          "tokens": {
+            "embedding_dim": 200,
+            "trainable": true,
+            "type": "embedding"
+          }
+        }
+      },
+      "type": "gnn",
+      "use_neighbor_similarity_for_linking": true
+    }
+  },
+  "train_data_path": "dataset/train_spider.json",
+  "numpy_seed": 5,
+  "pytorch_seed": 5,
+  "dataset_reader": {
+    "cache_directory": "cache/train",
+    "dataset_path": "dataset/database",
+    "keep_if_unparsable": false,
+    "lazy": false,
+    "max_instances": 10,
+    "tables_file": "dataset/tables.json",
+    "type": "spider"
+  }
+}
