@@ -7,7 +7,9 @@ from ordered_set import OrderedSet
 from unidecode import unidecode
 
 from dataset_readers.dataset_util.spider_utils import TableColumn, read_dataset_schema, read_dataset_values
-from allennlp.semparse.contexts.knowledge_graph import KnowledgeGraph
+# from allennlp.semparse.contexts.knowledge_graph import KnowledgeGraph
+from dataset_readers.fields.knowledge_graph import KnowledgeGraph
+
 
 
 # == stop words that will be omitted by ContextGenerator
@@ -39,7 +41,7 @@ class SpiderDBContext:
         self.utterance = utterance
 
         tokenized_utterance = tokenizer.tokenize(utterance.lower())
-        self.tokenized_utterance = [Token(text=t.text, lemma=t.lemma_) for t in tokenized_utterance]
+        self.tokenized_utterance = [Token(text=t.text, lemma_=t.lemma_) for t in tokenized_utterance]
 
         if db_id not in SpiderDBContext.schemas:
             SpiderDBContext.schemas = read_dataset_schema(self.tables_file)
@@ -50,7 +52,7 @@ class SpiderDBContext:
         entity_texts = [self.knowledge_graph.entity_text[entity].lower()
                         for entity in self.knowledge_graph.entities]
         entity_tokens = tokenizer.batch_tokenize(entity_texts)
-        self.entity_tokens = [[Token(text=t.text, lemma=t.lemma_) for t in et] for et in entity_tokens]
+        self.entity_tokens = [[Token(text=t.text, lemma_=t.lemma_) for t in et] for et in entity_tokens]
 
     @staticmethod
     def entity_key_for_column(table_name: str, column: TableColumn) -> str:
