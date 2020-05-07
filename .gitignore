@@ -8,3 +8,11 @@ ___cache/
 experiments/
 
 cache/
+
+schema/
+
+train_configs/
+
+gnn.tar.gz
+
+gnn_global_models.tar.gz
