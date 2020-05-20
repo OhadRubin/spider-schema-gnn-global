@@ -40,7 +40,7 @@ if __name__ == '__main__':
     default_partials = []
     partials = args.partials
     partials.extend(default_partials)
-    default_config_file = 'train_configs/defaults.jsonnet'
+    default_config_file = 'train_configs/bert_defaults.jsonnet'
 
     experiment_name_parts = []
     if args.name:
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     sh.ln("-s",f'experiments/{experiment_name}',"last_experiment")
 #     s = """{{"trainer": {"cuda_device": %s  }}}""".format(_cuda_device)
 #     subprocess.check_call(f"git ls-files | tar Tzcf - experiments/{experiment_name}/code.tgz",shell=True)
-    # subprocess.check_call(f"git ls-files | tar Tzcf - backup/{experiment_name}.tgz",shell=True)
+    subprocess.check_call(f"git ls-files | tar Tzcf - backup/{experiment_name}.tgz",shell=True)
 #     torch.autograd.set_detect_anomaly(True)
     train_model_from_file(new_config_path, f'experiments/{experiment_name}', recover=args.recover, 
                           force=True)

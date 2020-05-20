@@ -94,7 +94,7 @@ class KnowledgeGraphField(Field[Dict[str, torch.Tensor]]):
     ) -> None:
 
         self.knowledge_graph = knowledge_graph
-        self._tokenizer = tokenizer or SpacyTokenizer(pos_tags=True)
+        _tokenizer = tokenizer or SpacyTokenizer(pos_tags=True)
         self._token_indexers = token_indexers
         if not entity_tokens:
             entity_texts = [
@@ -106,7 +106,7 @@ class KnowledgeGraphField(Field[Dict[str, torch.Tensor]]):
             # so that we can add lemma features.  If we can remove the need for lemma / other
             # hand-written features, like with a CNN, we can cut down our data processing time by a
             # factor of 2.
-            self.entity_texts = self._tokenizer.batch_tokenize(entity_texts)
+            self.entity_texts = _tokenizer.batch_tokenize(entity_texts)
         else:
             self.entity_texts = entity_tokens
         entity_text_fields = []
@@ -196,7 +196,12 @@ class KnowledgeGraphField(Field[Dict[str, torch.Tensor]]):
 
     @overrides
     def as_tensor(self, padding_lengths: Dict[str, int]) -> Dict[str, torch.Tensor]:
+        # print(padding_lengths)
+        # try:
+        # print(self._entity_text_field)
+        # exit(0)
         text_tensors = self._entity_text_field.as_tensor(padding_lengths)
+
         padded_linking_features = util.pad_sequence_to_length(
             self.linking_features, padding_lengths["num_entities"], default_value=lambda: []
         )
@@ -233,10 +238,13 @@ class KnowledgeGraphField(Field[Dict[str, torch.Tensor]]):
 
     @overrides
     def empty_field(self) -> "KnowledgeGraphField":
+        # return self
         return KnowledgeGraphField(KnowledgeGraph(set(), {}), [], self._token_indexers)
 
     @overrides
     def batch_tensors(self, tensor_list: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
+        # print(tensor_list)
+        # print()
         text_tensors = [tensor["text"] for tensor in tensor_list]
         batched_text = self._entity_text_field.batch_tensors(text_tensors)
         batched_linking = torch.stack([tensor["linking"] for tensor in tensor_list])

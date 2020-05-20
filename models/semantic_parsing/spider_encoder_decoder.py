@@ -51,6 +51,7 @@ from state_machines.transition_functions.linking_transition_function import Link
 
 from models.semantic_parsing.schema_encoder import SchemaEncoder
 from models.semantic_parsing.gnn_encoder import GNNEncoder
+from models.semantic_parsing.bert_encoder import BertEncoder
 
 # from models.semantic_parsing.spider_encoder_decoder import SpiderParser
 
@@ -125,7 +126,7 @@ class SpiderParser(Model):
         batch_size = len(world)
 
         initial_state,loss = self._gnn_encoder._get_initial_state(utterance, world, schema, valid_actions, action_sequence)
-
+        # print(action_sequence)
         if action_sequence is not None:
             # Remove the trailing dimension (from ListField[ListField[IndexField]]).
             action_sequence = action_sequence.squeeze(-1)

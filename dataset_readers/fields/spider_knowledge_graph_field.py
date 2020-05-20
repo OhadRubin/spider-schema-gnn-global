@@ -45,7 +45,7 @@ class SpiderKnowledgeGraphField(KnowledgeGraphField):
                          max_table_tokens=max_table_tokens)
 
         self.linking_features = self._compute_related_linking_features(self.linking_features)
-
+        
         # hack needed to fix calculation of feature extractors in the inherited as_tensor method
         self._feature_extractors = feature_extractors * 2
 

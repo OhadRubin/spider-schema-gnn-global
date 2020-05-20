@@ -24,6 +24,20 @@ logger = logging.getLogger(__name__)
 import jsonpickle
 
 
+from time import time
+
+
+class Timer(object):
+    def __init__(self, description):
+        self.description = description
+    def __enter__(self):
+        self.start = time()
+    def __exit__(self, type, value, traceback):
+        self.end = time()
+        print(f"{self.description}: {self.end - self.start}")
+
+
+
 import pathlib
 @DatasetReader.register("spider")
 class SpiderDatasetReader(DatasetReader):
@@ -37,8 +51,8 @@ class SpiderDatasetReader(DatasetReader):
                 #  load_cache: bool = True,
                 #  save_cache: bool = True,
                  max_instances = None):
-        # super().__init__(lazy=lazy,cache_directory=cache_directory,max_instances=max_instances)
-        super().__init__(lazy=lazy,max_instances=max_instances)
+        super().__init__(lazy=lazy,cache_directory=cache_directory,max_instances=max_instances)
+        # super().__init__(lazy=lazy,max_instances=max_instances)
 
         # default spacy tokenizer splits the common token 'id' to ['i', 'd'], we here write a manual fix for that
         spacy_tokenizer = SpacyTokenizer(pos_tags=True)
@@ -183,6 +197,11 @@ class SpiderDatasetReader(DatasetReader):
         fields["action_sequence"] = action_sequence_field
         fields["world"] = MetadataField(world)
         fields["schema"] = table_field
+        for key,value  in table_field.__dict__.items():
+        # for key,value  in fields.items():
+            pickled =  dill.dumps(value)
+            res = jsonpickle.encode(pickled)
+            print(f"{key}:{len(res)}")
         ins = Instance(fields)
         # print(ins)
         # import jsonpickle
@@ -193,18 +212,42 @@ class SpiderDatasetReader(DatasetReader):
     def process_instance(self, instance: Instance, index: int):
         return instance
 
-    def serialize_instance(self, instance: Instance) -> str:
-        pickled =  dill.dumps(instance)
-        
-        # jsonpickle.decode(jsonpickle.encode(instance))
-        return jsonpickle.encode(pickled)
-        # return  codecs.encode(pickle.dumps(instance), "base64").decode()
+    # def serialize_instance(self, instance: Instance) -> str:
+    #     # with Timer():
+    #     # if True:
+    #     pickled =  dill.dumps(instance)
+    #     res = jsonpickle.encode(pickled)
+    #     # print(len(res))
+    #     # res = pickle.loads(codecs.decode(pickled.encode(), 'base64')).decode()
 
-        # return pickled.encode()
+
+    #     # jsonpickle.decode(jsonpickle.encode(instance))
+    #     return res
+    #     # return  codecs.encode(pickle.dumps(instance), "base64").decode()
+
+    #     # return pickled.encode()
         
 
-    def deserialize_instance(self, string: str) -> Instance:
-        # pickled = codecs.decode(string, "base64")
-        pickled = jsonpickle.decode(string)
-        return   dill.loads(pickled) # type: ignore
-        # return pickle.loads(codecs.decode(string.encode(), "base64"))
+    # def deserialize_instance(self, string: str) -> Instance:
+    #     # pickled = codecs.decode(string, "base64")
+    #     # with Timer("pickled = jsonpickle.decode(string)"):
+    #     pickled = jsonpickle.decode(string)
+
+    #     res = dill.loads(pickled)
+    #     # res = pickle.loads(codecs.decode(string.encode(), 'base64'))
+    #     return  res  # type: ignore
+    #     return pickle.loads(codecs.decode(string.encode(), "base64"))
+
+    @overrides
+    def _instances_from_cache_file(self, cache_filename: str):
+        with open(cache_filename, "rb") as cache_file:
+            yield from dill.load(cache_file)
+            # for line in cache_file:
+                # yield self.deserialize_instance(line.strip())
+
+    @overrides
+    def _instances_to_cache_file(self, cache_filename, instances) -> None:
+        with open(cache_filename, "wb") as cache:
+            dill.dump(instances,cache)
+            # for instance in Tqdm.tqdm(instances):
+                # cache.write(self.serialize_instance(instance) + "\n")

@@ -49,8 +49,8 @@ from state_machines.transition_functions.linking_transition_function import Link
 
 from models.semantic_parsing.schema_encoder import SchemaEncoder
 
-@SchemaEncoder.register("gnn")
-class GNNEncoder(SchemaEncoder):
+@SchemaEncoder.register("bert")
+class BertEncoder(SchemaEncoder):
     def __init__(self,
                  encoder: Seq2SeqEncoder,
                  entity_encoder: Seq2VecEncoder,
@@ -73,8 +73,8 @@ class GNNEncoder(SchemaEncoder):
         self._entity_encoder = TimeDistributed(entity_encoder)
 
         self._num_entity_types = 9
-        self._embedding_dim = question_embedder.get_output_dim()
-
+        # self._embedding_dim = question_embedder.get_output_dim()
+        self._embedding_dim = 200
         self._entity_type_encoder_embedding = Embedding(self._embedding_dim, self._num_entity_types)
 
         self._linking_params = torch.nn.Linear(16, 1)
@@ -82,6 +82,8 @@ class GNNEncoder(SchemaEncoder):
         self._gnn = GatedGraphConv(self._embedding_dim, gnn_timesteps, num_edge_types=3, dropout=dropout)
 
         self._neighbor_params = torch.nn.Linear(self._embedding_dim, self._embedding_dim)
+        self._to_emb = torch.nn.Linear(768, self._embedding_dim)
+
         self._add_action_bias = add_action_bias
 
         self._parse_sql_on_decoding = parse_sql_on_decoding
@@ -126,7 +128,8 @@ class GNNEncoder(SchemaEncoder):
         max_len_entities = max([len(w.db_context.knowledge_graph.entities) for w in worlds])
         batch_size = len(worlds)
         # print(utterance['tokens']['tokens'])
-        device = utterance['tokens']['tokens'].device
+        # print(utterance)
+        device = utterance['tokens']["token_ids"].device
         
         oracle_entities = []
         oracle_relevance_score = None
@@ -143,16 +146,23 @@ class GNNEncoder(SchemaEncoder):
                                                         device=device)
 
         schema_text = schema['text']
-        embedded_schema = self._question_embedder(schema_text, num_wrapping_dims=1)
+        with torch.no_grad():
+            embedded_schema = self._question_embedder(schema_text, num_wrapping_dims=1)
+        embedded_schema = self._to_emb(embedded_schema)
         schema_mask = util.get_text_field_mask(schema_text, num_wrapping_dims=1).float()
-
-        embedded_utterance = self._question_embedder(utterance)
+        # print(embedded_schema.size())
+        with torch.no_grad():
+            embedded_utterance = self._question_embedder(utterance)
+        embedded_utterance = self._to_emb(embedded_utterance)
+        # print(embedded_utterance.size())
+        # print(utterance['tokens']['token_ids'].size())
+        # print(schema['linking'].size())
         utterance_mask = util.get_text_field_mask(utterance).float()
 
         batch_size, num_entities, num_entity_tokens, _ = embedded_schema.size()
         num_entities = max([len(world.db_context.knowledge_graph.entities) for world in worlds])
-        num_question_tokens = utterance['tokens']['tokens'].size(1)
-
+        # num_question_tokens = utterance['tokens']['tokens'].size(1)
+        num_question_tokens = embedded_utterance.size(1)
         # entity_types: tensor with shape (batch_size, num_entities), where each entry is the
         # entity's type id.
         # entity_type_dict: Dict[int, int], mapping flattened_entity_index -> type_index
@@ -220,6 +230,7 @@ class GNNEncoder(SchemaEncoder):
             entity_embeddings = torch.tanh(entity_type_embeddings)
 
         link_embedding = util.weighted_sum(entity_embeddings, linking_probabilities)
+        # print(link_embedding.size())
         encoder_input = torch.cat([link_embedding, embedded_utterance], 2)
 
         # (batch_size, utterance_length, encoder_output_dim)

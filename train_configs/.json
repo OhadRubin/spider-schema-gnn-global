@@ -1,31 +1,7 @@
 {
+  "random_seed": 5,
   "data_loader": {
     "batch_size": 15
-  },
-  "trainer": {
-    "checkpointer": {
-      "num_serialized_models_to_keep": 2
-    },
-    "cuda_device": 0,
-    "num_epochs": 100,
-    "optimizer": {
-      "lr": 0.001,
-      "type": "adam",
-      "weight_decay": 0.0005
-    },
-    "patience": 50,
-    "validation_metric": "+sql_match"
-  },
-  "validation_data_path": "dataset/dev.json",
-  "random_seed": 5,
-  "validation_dataset_reader": {
-    "cache_directory": "cache/val",
-    "dataset_path": "dataset/database",
-    "keep_if_unparsable": true,
-    "lazy": false,
-    "max_instances": 10,
-    "tables_file": "dataset/tables.json",
-    "type": "spider"
   },
   "model": {
     "dataset_path": "dataset/",
@@ -64,26 +40,63 @@
       "question_embedder": {
         "token_embedders": {
           "tokens": {
-            "embedding_dim": 200,
-            "trainable": true,
-            "type": "embedding"
+            "model_name": "bert-base-cased",
+            "type": "pretrained_transformer_mismatched"
           }
         }
       },
-      "type": "gnn",
+      "type": "bert",
       "use_neighbor_similarity_for_linking": true
     }
   },
-  "train_data_path": "dataset/train_spider.json",
-  "numpy_seed": 5,
+  "validation_data_loader": {
+    "batch_size": 1
+  },
   "pytorch_seed": 5,
+  "train_data_path": "dataset/train_spider.json",
+  "validation_data_path": "dataset/dev.json",
+  "validation_dataset_reader": {
+    "cache_directory": "cache/bert/val",
+    "dataset_path": "dataset/database",
+    "keep_if_unparsable": true,
+    "lazy": false,
+    "max_instances": null,
+    "question_token_indexers": {
+      "tokens": {
+        "model_name": "bert-base-cased",
+        "type": "pretrained_transformer_mismatched"
+      }
+    },
+    "tables_file": "dataset/tables.json",
+    "type": "spider"
+  },
+  "numpy_seed": 5,
   "dataset_reader": {
-    "cache_directory": "cache/train",
+    "cache_directory": "cache/bert/train",
     "dataset_path": "dataset/database",
     "keep_if_unparsable": false,
     "lazy": false,
-    "max_instances": 10,
+    "max_instances": null,
+    "question_token_indexers": {
+      "tokens": {
+        "model_name": "bert-base-cased",
+        "type": "pretrained_transformer_mismatched"
+      }
+    },
     "tables_file": "dataset/tables.json",
     "type": "spider"
+  },
+  "trainer": {
+    "checkpointer": {
+      "num_serialized_models_to_keep": 2
+    },
+    "cuda_device": 0,
+    "num_epochs": 1000,
+    "optimizer": {
+      "lr": 0.001,
+      "type": "adam",
+      "weight_decay": 0.0005
+    },
+    "validation_metric": "+sql_match"
   }
 }
