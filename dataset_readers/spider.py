@@ -201,7 +201,7 @@ class SpiderDatasetReader(DatasetReader):
         # for key,value  in fields.items():
             pickled =  dill.dumps(value)
             res = jsonpickle.encode(pickled)
-            print(f"{key}:{len(res)}")
+            # print(f"{key}:{len(res)}")
         ins = Instance(fields)
         # print(ins)
         # import jsonpickle

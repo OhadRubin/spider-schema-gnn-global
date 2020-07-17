@@ -10,7 +10,7 @@ experiments/
 cache/
 
 schema/
-
+dataset/
 train_configs/
 
 gnn.tar.gz
