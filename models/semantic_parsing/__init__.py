@@ -1,1 +1,1 @@
-from models.semantic_parsing.spider_encoder_decoder import SpiderParser
+# from models.semantic_parsing.spider_encoder_decoder import SpiderParser

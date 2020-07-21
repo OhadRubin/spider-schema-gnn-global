@@ -108,6 +108,7 @@ class SpiderDBContext:
                 neighbors[string_entity].add(column_key)
                 neighbors[column_key].add(string_entity)
             entity_text[string_entity] = string_entity.replace("string:", "").replace("_", " ")
+        # print(entity_text)
 
         # loop again after we have gone through all columns to link foreign keys columns
         for table_name in db_schema.keys():

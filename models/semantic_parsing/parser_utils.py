@@ -6,9 +6,9 @@ from allennlp.common.util import pad_sequence_to_length
 from allennlp.data import Vocabulary
 from allennlp.models import Model
 from allennlp.modules import TextFieldEmbedder, Seq2SeqEncoder, Seq2VecEncoder, Embedding, TimeDistributed
-from torch_geometric.data import Data, Batch
+# from torch_geometric.data import Data, Batch
 
-from modules.gated_graph_conv import GatedGraphConv
+# from modules.gated_graph_conv import GatedGraphConv
 from allennlp.training.metrics import Average
 
 from semparse.worlds.spider_world import SpiderWorld
@@ -32,8 +32,8 @@ from allennlp_semparse.state_machines import BeamSearch
 from allennlp_semparse.state_machines.states import GrammarStatelet
 from torch.nn import Parameter
 
-from models.semantic_parsing.graph_pruning import GraphPruning
-from models.semantic_parsing.spider_base import SpiderBase
+# from models.semantic_parsing.graph_pruning import GraphPruning
+# from models.semantic_parsing.spider_base import SpiderBase
 from semparse.worlds.evaluate_spider import evaluate
 from state_machines.states.rnn_statelet import RnnStatelet
 from allennlp_semparse.state_machines.trainers import MaximumMarginalLikelihood

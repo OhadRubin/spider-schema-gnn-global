@@ -5,9 +5,9 @@ from allennlp.common.util import pad_sequence_to_length
 from allennlp.data import Vocabulary
 from allennlp.models import Model
 from allennlp.modules import TextFieldEmbedder, Seq2SeqEncoder, Seq2VecEncoder, Embedding, TimeDistributed
-from torch_geometric.data import Data, Batch
+# from torch_geometric.data import Data, Batch
 
-from modules.gated_graph_conv import GatedGraphConv
+# from modules.gated_graph_conv import GatedGraphConv
 from allennlp.training.metrics import Average
 
 from semparse.worlds.spider_world import SpiderWorld
@@ -33,8 +33,8 @@ from allennlp_semparse.state_machines import BeamSearch
 from allennlp_semparse.state_machines.states import GrammarStatelet
 from torch.nn import Parameter
 
-from models.semantic_parsing.graph_pruning import GraphPruning
-from models.semantic_parsing import parser_utils
+# from models.semantic_parsing.graph_pruning import GraphPruning
+# from models.semantic_parsing import parser_utils
 from semparse.worlds.evaluate_spider import evaluate
 from state_machines.states.rnn_statelet import RnnStatelet
 from allennlp_semparse.state_machines.trainers import MaximumMarginalLikelihood
@@ -50,8 +50,8 @@ from state_machines.transition_functions.attend_past_schema_items_transition imp
 from state_machines.transition_functions.linking_transition_function import LinkingTransitionFunction
 
 from models.semantic_parsing.schema_encoder import SchemaEncoder
-from models.semantic_parsing.gnn_encoder import GNNEncoder
-from models.semantic_parsing.bert_encoder import BertEncoder
+# from models.semantic_parsing.gnn_encoder import GNNEncoder
+# from models.semantic_parsing.bert_encoder import BertEncoder
 
 # from models.semantic_parsing.spider_encoder_decoder import SpiderParser
 
@@ -59,7 +59,7 @@ from models.semantic_parsing.bert_encoder import BertEncoder
 class SpiderParser(Model):
     def __init__(self,
                  vocab: Vocabulary,
-                 world_encoder: SchemaEncoder,
+                 schema_encoder: SchemaEncoder,
                  decoder_beam_search: BeamSearch,
                  input_attention: Attention,
                  past_attention: Attention,
@@ -68,7 +68,8 @@ class SpiderParser(Model):
                  dataset_path: str = 'dataset',
                  training_beam_size: int = None,
                  decoder_num_layers: int = 1,
-                 dropout: float = 0.0) -> None:
+                 dropout: float = 0.0
+                 ) -> None:
         super().__init__(vocab)
         self.vocab = vocab
         if dropout > 0:
@@ -79,11 +80,11 @@ class SpiderParser(Model):
         self._acc_single = Average()
         self._acc_multi = Average()
 
-        self._gnn_encoder = world_encoder
+        self._schema_encoder = schema_encoder
 
         self._max_decoding_steps = max_decoding_steps
-        self._add_action_bias = self._gnn_encoder._add_action_bias
-
+        if "_add_action_bias" in self._schema_encoder.__dict__: 
+            self._add_action_bias = self._schema_encoder._add_action_bias
         self._action_padding_index = -1  # the padding value used by IndexField
 
         self._exact_match = Average()
@@ -99,8 +100,8 @@ class SpiderParser(Model):
         self._beam_search = decoder_beam_search
         self._decoder_trainer = MaximumMarginalLikelihood(training_beam_size)
 
-        self._transition_function = AttendPastSchemaItemsTransitionFunction(encoder_output_dim=self._gnn_encoder._encoder_output_dim,
-                                                                            action_embedding_dim=self._gnn_encoder._action_embedding_dim,
+        self._transition_function = AttendPastSchemaItemsTransitionFunction(encoder_output_dim=self._schema_encoder._encoder_output_dim,
+                                                                            action_embedding_dim=self._schema_encoder._action_embedding_dim,
                                                                             input_attention=input_attention,
                                                                             past_attention=past_attention,
                                                                             predict_start_type_separately=False,
@@ -118,15 +119,18 @@ class SpiderParser(Model):
 
     @overrides
     def forward(self,  # type: ignore
-                utterance: Dict[str, torch.LongTensor],
                 valid_actions: List[List[ProductionRule]],
                 world: List[SpiderWorld],
-                schema: Dict[str, torch.LongTensor],
-                action_sequence: torch.LongTensor = None) -> Dict[str, torch.Tensor]:
+                utterance: Dict[str, torch.LongTensor] = None,
+                schema: Dict[str, torch.LongTensor]= None,
+                action_sequence: torch.LongTensor = None,
+                enc=None,
+                relation=None,
+                schema_strings=None) -> Dict[str, torch.Tensor]:
         batch_size = len(world)
-
-        initial_state,loss = self._gnn_encoder._get_initial_state(utterance, world, schema, valid_actions, action_sequence)
-        # print(action_sequence)
+        # print(enc)
+        initial_state,loss = self._schema_encoder._get_initial_state(enc, world, schema, valid_actions, action_sequence, schema_strings)
+        return {"loss":[loss],"initial_state":[initial_state]}
         if action_sequence is not None:
             # Remove the trailing dimension (from ListField[ListField[IndexField]]).
             action_sequence = action_sequence.squeeze(-1)

@@ -49,6 +49,11 @@ from dataset_readers.fields.spider_knowledge_graph_field import SpiderKnowledgeG
 from dataset_readers.fields.production_rule_field import ProductionRuleField
 from semparse.contexts.spider_db_context import SpiderDBContext
 from semparse.worlds.spider_world import SpiderWorld
+from allennlp.data.token_indexers import PretrainedTransformerMismatchedIndexer
+from allennlp.data.token_indexers import PretrainedTransformerIndexer
+
+from allennlp.data import Tokenizer, Token
+
 import pickle
 import jsonpickle
 from time import time
@@ -58,6 +63,16 @@ logger = logging.getLogger(__name__)
 
 STOPWORDS = set(nltk.corpus.stopwords.words('english'))
 PUNKS = set(a for a in string.punctuation)
+
+def normalize_schema_constant(entity):
+    col = "_".join(entity)
+    col =  col.split("_<table-sep>_")
+    if len(col)==1:
+        return "_".join(entity)
+    else:
+        table = col[1]
+        col = col[0].split(">_")[1]
+        return f"{table}@{col}"
 
 def clamp(value, abs_max):
     value = max(-abs_max, value)
@@ -156,13 +171,19 @@ class SpiderRatsqlDatasetReader(DatasetReader):
                 tt_max_dist=2,
                 max_instances = None):
         super().__init__(lazy=lazy,cache_directory=cache_directory,max_instances=max_instances)
-
+        # super().__init__(lazy=lazy,cache_directory=cache_directory,max_instances=None)
+        self._max_instances = max_instances
         # default spacy tokenizer splits the common token 'id' to ['i', 'd'], we here write a manual fix for that
         spacy_tokenizer = SpacyTokenizer(pos_tags=True)
         spacy_tokenizer.spacy.tokenizer.add_special_case(u'id', [{ORTH: u'id', LEMMA: u'id'}])
-        self._tokenizer = spacy_tokenizer
+        # self._utterance_token_indexers = PretrainedTransformerMismatchedIndexer("bert-base-uncased")
+        self._utterance_token_indexers = {"tokens":PretrainedTransformerMismatchedIndexer("distilbert-base-uncased")}
+        self._tokenizer = self._utterance_token_indexers['tokens']._allennlp_tokenizer
+        # self._tokenizer = spacy_tokenizer
 
-        self._utterance_token_indexers = question_token_indexers or {'tokens': SingleIdTokenIndexer()}
+        # self._utterance_token_indexers = question_token_indexers or {'tokens': SingleIdTokenIndexer()}
+        
+
         self._keep_if_unparsable = keep_if_unparsable
 
         self._tables_file = tables_file
@@ -235,7 +256,8 @@ class SpiderRatsqlDatasetReader(DatasetReader):
             
             json_obj = json.load(data_file)
             for total_cnt, ex in enumerate(json_obj):
-
+                if total_cnt==self._max_instances:
+                    break
                 query_tokens = None
                 if 'query_toks' in ex:
 
@@ -263,7 +285,6 @@ class SpiderRatsqlDatasetReader(DatasetReader):
                          db_id: str,
                          sql: List[str] = None,
                          orig=None):
-        # print("bye")
         fields: Dict[str, Field] = {}
         item = SpiderItem(
             text=orig['question_toks'],
@@ -271,17 +292,40 @@ class SpiderRatsqlDatasetReader(DatasetReader):
             schema=self.schemas[db_id],
             orig=orig,
             orig_schema=self.schemas[db_id].orig)
-
+        # fields["item"] = MetadataField(item)
         desc = self.preprocess_item(item,"train")
-        q = desc['question']
-        t = [x[0] for x in  desc['tables']]
-        c = ["_".join(x) for x in  desc['columns']]
+        # fields["desc"] = MetadataField(desc)
+
+
+        schema_strings = [normalize_schema_constant(x) for x in desc['columns']+desc['tables']]
+        fields["schema_strings"] = MetadataField(schema_strings)    
+        q = [x.lower() for x in desc['question']]
+        c = ["_".join(x).lower() for x in  desc['columns']]
+        
+        t = ["_".join(x).lower() for x in  desc['tables']]
+        t = ["<table>"+x for x in  t]
+        
+        
         enc = q+c+t
-        # print(enc)
+        # print()
+        cls_token = self._tokenizer.tokenize('a')[0]
+        enc_field_list = []
+        for x in self._tokenizer.batch_tokenize(enc):
+            token_list = [y for y in x[1:-1] if y.text not in ['_']]
+            enc_field_list.extend(token_list) 
+        # print(cls_token.text_id)
+        enc_field_list = [cls_token] + enc_field_list 
+        
+        sch = self._tokenizer.tokenize(" ".join(schema_strings))
+        
+        # fields["enc"] = TextField(sch, self._utterance_token_indexers)
+        # print(enc_field_list)
+        fields["enc"] = TextField(enc_field_list, self._utterance_token_indexers)
+        
+            # print(token_list)
+
         relation = self.compute_relations(desc,len(enc),len(q),len(c),range(len(c)+1),range(len(t)+1))
-        #old code
-        relation_field = ArrayField(relation,padding_value=-1,dtype=np.int32)
-        fields['relation'] = relation_field
+        fields['relation'] = ArrayField(relation,padding_value=-1,dtype=np.int32)
 
         db_context = SpiderDBContext(db_id, utterance, tokenizer=self._tokenizer,
                                      tables_file=self._tables_file, dataset_path=self._dataset_path)
@@ -293,12 +337,10 @@ class SpiderRatsqlDatasetReader(DatasetReader):
                                                 max_table_tokens=None)
 
         world = SpiderWorld(db_context, query=sql)
-        fields["utterance"] = TextField(db_context.tokenized_utterance, self._utterance_token_indexers)
+        # fields["utterance"] = TextField(db_context.tokenized_utterance, self._utterance_token_indexers)
 
         action_sequence, all_actions = world.get_action_sequence_and_all_actions()
-
         if action_sequence is None and self._keep_if_unparsable:
-            # print("Parse error")
             action_sequence = []
         elif action_sequence is None:
             return None
@@ -328,10 +370,7 @@ class SpiderRatsqlDatasetReader(DatasetReader):
         action_sequence_field = ListField(index_fields)
         fields["action_sequence"] = action_sequence_field
         fields["world"] = MetadataField(world)
-        fields["schema"] = table_field
-        for key,value  in table_field.__dict__.items():
-            pickled =  dill.dumps(value)
-            res = jsonpickle.encode(pickled)
+        # fields["schema"] = table_field
         ins = Instance(fields)
 
         return  ins
