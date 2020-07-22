@@ -46,8 +46,11 @@ from state_machines.states.sql_state import SqlState
 from state_machines.transition_functions.attend_past_schema_items_transition import \
     AttendPastSchemaItemsTransitionFunction
 from state_machines.transition_functions.linking_transition_function import LinkingTransitionFunction
-
+import numpy as np
+import  modules.transformer as transformer
 from models.semantic_parsing.schema_encoder import SchemaEncoder
+
+
 
 @SchemaEncoder.register("ratsql")
 class RatsqlEncoder(SchemaEncoder):
@@ -72,6 +75,29 @@ class RatsqlEncoder(SchemaEncoder):
             self._dropout = lambda x: x
         # self._question_embedder = question_embedder
         self._question_embedder = PretrainedTransformerMismatchedEmbedder("distilbert-base-uncased")
+        num_layers = 4
+        num_heads = 8
+        hidden_size = 768
+        ff_size = 768
+        tie_layers = False
+        n_relations = 51
+        self.rat_encoder = transformer.Encoder(
+            lambda: transformer.EncoderLayer(
+                hidden_size,
+                transformer.MultiHeadedAttentionWithRelations(
+                    num_heads,
+                    hidden_size,
+                    dropout),
+                transformer.PositionwiseFeedForward(
+                    hidden_size,
+                    ff_size,
+                    dropout),
+                n_relations,
+                dropout),
+            hidden_size,
+            num_layers,
+            tie_layers)
+
         self._entity_encoder = TimeDistributed(entity_encoder)
 
         self._num_entity_types = 9
@@ -120,27 +146,41 @@ class RatsqlEncoder(SchemaEncoder):
                                        action_embedding_dim,
                                        Activation.by_name('relu')())
 
+        
+
 
     def _get_initial_state(self,
                            utterance: Dict[str, torch.LongTensor],
                            worlds: List[SpiderWorld],
                            schema: Dict[str, torch.LongTensor],
                            actions: List[List[ProductionRule]],
-                           action_sequence=None, schema_strings=None) -> GrammarBasedState:
+                           action_sequence=None,
+                           schema_strings=None,
+                           lengths=None,
+                           offsets=None,
+                           relation = None) -> GrammarBasedState:
 
 
         batch_size = len(worlds)
         device = utterance['tokens']["token_ids"].device
+        utterance['tokens']['offsets']=offsets
         embedded_utterance = self._question_embedder(**utterance['tokens'])
+        
         utterance_length = embedded_utterance.size(1)
+        relation_mask = torch.ones_like(relation)
+        enriched_utterance = self.rat_encoder(embedded_utterance,relation.long(),relation_mask)
 
-        utterance_mask = util.get_text_field_mask(utterance).float()
+        # utterance_mask = util.get_text_field_mask(utterance).float()
+        utterance_mask = torch.ones([batch_size, utterance_length],device=device).float() #TODO: fixme
         encoder_output_dim = self._action_embedding_dim + self._encoder.get_output_dim()
 
         final_encoder_output =  torch.zeros([batch_size, encoder_output_dim],device=device) #TODO: fixme
         memory_cell = torch.zeros([batch_size, encoder_output_dim],device=device)  #OK
         encoder_outputs = torch.zeros([batch_size, utterance_length, encoder_output_dim],device=device) #TODO: fixme
         initial_score = torch.zeros([batch_size],device=device) #OK
+        linked_actions_linking_scores  = torch.zeros([batch_size, utterance_length, utterance_length],device=device)
+        linking_scores  = torch.zeros([batch_size, utterance_length, utterance_length],device=device)
+        
         # 
         # To make grouping states together in the decoder easier, we convert the batch dimension in
         # all of our tensors into an outer list.  For instance, the encoder outputs have shape
@@ -150,6 +190,7 @@ class RatsqlEncoder(SchemaEncoder):
         initial_score_list = [initial_score[i] for i in range(batch_size)]
         encoder_output_list = [encoder_outputs[i] for i in range(batch_size)]
         utterance_mask_list = [utterance_mask[i] for i in range(batch_size)]
+
         initial_rnn_state = []
         for i in range(batch_size):
             initial_rnn_state.append(RnnStatelet(final_encoder_output[i],
@@ -161,6 +202,8 @@ class RatsqlEncoder(SchemaEncoder):
 
         initial_grammar_state = [self._create_grammar_state(worlds[i],
                                                             actions[i],
+                                                            linking_scores[i],
+                                                            linked_actions_linking_scores[i],
                                                             embedded_utterance[i],
                                                             schema_strings[i])
                                  for i in range(batch_size)]
@@ -175,7 +218,6 @@ class RatsqlEncoder(SchemaEncoder):
                                           sql_state=initial_sql_state,
                                           possible_actions=actions,
                                           action_entity_mapping=[w.get_action_entity_mapping() for w in worlds])
-
         
         loss = torch.tensor([0]).float().to(device)
 
@@ -185,6 +227,8 @@ class RatsqlEncoder(SchemaEncoder):
     def _create_grammar_state(self,
                               world: SpiderWorld,
                               possible_actions: List[ProductionRule],
+                              linking_scores: torch.Tensor,
+                              linked_actions_linking_scores: torch.Tensor,
                               entity_graph_encoding: torch.Tensor,
                               schema_strings) -> GrammarStatelet:
         action_map = {}
@@ -245,14 +289,13 @@ class RatsqlEncoder(SchemaEncoder):
                     dim=0,
                     index=torch.tensor(entity_ids, device=entity_graph_encoding.device)
                 )
-
-                entity_linking_scores = 2
-                entity_action_linking_scores = 1
+                entity_linking_scores = linking_scores[entity_ids]
+                entity_action_linking_scores = linked_actions_linking_scores[entity_ids]
                 translated_valid_actions[key]['linked'] = (entity_linking_scores,
                                                             entity_type_embeddings,
                                                             list(linked_action_ids),
                                                             entity_action_linking_scores)
-
+        # print(translated_valid_actions)
 
         return GrammarStatelet(['statement'],
                                translated_valid_actions,

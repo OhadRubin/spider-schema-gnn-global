@@ -64,6 +64,10 @@ logger = logging.getLogger(__name__)
 STOPWORDS = set(nltk.corpus.stopwords.words('english'))
 PUNKS = set(a for a in string.punctuation)
 
+def get_offsets(lengths):
+    e = np.cumsum(([0]+list(lengths))[:-1])
+    return list(zip(e+1,e+np.array(lengths)))
+
 def normalize_schema_constant(entity):
     col = "_".join(entity)
     col =  col.split("_<table-sep>_")
@@ -310,20 +314,27 @@ class SpiderRatsqlDatasetReader(DatasetReader):
         # print()
         cls_token = self._tokenizer.tokenize('a')[0]
         enc_field_list = []
+        sizes_list = []
+        # sizes_list.append(1)
+        # print(enc)
+        # print(len(self.relation_ids))
         for x in self._tokenizer.batch_tokenize(enc):
             token_list = [y for y in x[1:-1] if y.text not in ['_']]
+            sizes_list.append(len(token_list))
             enc_field_list.extend(token_list) 
+        # print
         # print(cls_token.text_id)
-        enc_field_list = [cls_token] + enc_field_list 
+        # enc_field_list =  enc_field_list 
         
-        sch = self._tokenizer.tokenize(" ".join(schema_strings))
+        # sch = self._tokenizer.tokenize(" ".join(schema_strings))
         
         # fields["enc"] = TextField(sch, self._utterance_token_indexers)
         # print(enc_field_list)
         fields["enc"] = TextField(enc_field_list, self._utterance_token_indexers)
         
             # print(token_list)
-
+        fields['lengths'] = ArrayField(np.array(sizes_list),padding_value=0,dtype=np.int32)
+        fields['offsets'] = ArrayField(np.array(get_offsets(sizes_list)),padding_value=0,dtype=np.int32)
         relation = self.compute_relations(desc,len(enc),len(q),len(c),range(len(c)+1),range(len(t)+1))
         fields['relation'] = ArrayField(relation,padding_value=-1,dtype=np.int32)
 

@@ -126,9 +126,13 @@ class SpiderParser(Model):
                 action_sequence: torch.LongTensor = None,
                 enc=None,
                 relation=None,
-                schema_strings=None) -> Dict[str, torch.Tensor]:
+                schema_strings=None,
+                lengths=None,
+                offsets=None
+                ) -> Dict[str, torch.Tensor]:
         batch_size = len(world)
-        initial_state,loss = self._schema_encoder._get_initial_state(enc, world, schema, valid_actions, action_sequence, schema_strings)
+        initial_state,loss = self._schema_encoder._get_initial_state(enc, world, schema,
+                             valid_actions, action_sequence, schema_strings,lengths,offsets,relation)
         if action_sequence is not None:
             # Remove the trailing dimension (from ListField[ListField[IndexField]]).
             action_sequence = action_sequence.squeeze(-1)

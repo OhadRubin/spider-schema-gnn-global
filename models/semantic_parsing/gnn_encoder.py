@@ -49,8 +49,8 @@ from state_machines.transition_functions.linking_transition_function import Link
 
 from models.semantic_parsing.schema_encoder import SchemaEncoder
 
-@SchemaEncoder.register("bert")
-class BertEncoder(SchemaEncoder):
+@SchemaEncoder.register("gnn")
+class GnnEncoder(SchemaEncoder):
     def __init__(self,
                  encoder: Seq2SeqEncoder,
                  entity_encoder: Seq2VecEncoder,
