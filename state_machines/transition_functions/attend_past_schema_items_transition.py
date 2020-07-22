@@ -319,6 +319,8 @@ class AttendPastSchemaItemsTransitionFunction(BasicTransitionFunction):
             if allowed_actions and not max_actions:
                 # If we're given a set of allowed actions, and we're not just keeping the top k of
                 # them, we don't need to do any sorting, so we can speed things up quite a bit.
+                print(results)
+                print(len(results))
                 for group_index, log_probs, _, action_embeddings, actions in results:
                     for log_prob, action_embedding, action in zip(log_probs, action_embeddings, actions):
                         if action in allowed_actions[group_index]:

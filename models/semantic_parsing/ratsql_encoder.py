@@ -116,7 +116,9 @@ class RatsqlEncoder(SchemaEncoder):
         # self._graph_pruning = GraphPruning(3, self._embedding_dim, encoder.get_output_dim(), dropout,
         #                                    timesteps=pruning_gnn_timesteps)
 
-        self._ent2ent_ff = FeedForward(action_embedding_dim, 1, action_embedding_dim, Activation.by_name('relu')())
+        self._ent2ent_ff = FeedForward(action_embedding_dim, 1,
+                                       action_embedding_dim,
+                                       Activation.by_name('relu')())
 
 
     def _get_initial_state(self,
@@ -125,140 +127,16 @@ class RatsqlEncoder(SchemaEncoder):
                            schema: Dict[str, torch.LongTensor],
                            actions: List[List[ProductionRule]],
                            action_sequence=None, schema_strings=None) -> GrammarBasedState:
-        if schema is None:
-            enc = utterance
 
 
-        valid_actions = actions
         batch_size = len(worlds)
         device = utterance['tokens']["token_ids"].device
-
-
-        # schema_text = schema['text']
-        # with torch.no_grad():
-            # embedded_schema = self._question_embedder(schema_text, num_wrapping_dims=1)
-        # embedded_schema = self._to_emb(embedded_schema)
-        # schema_mask = util.get_text_field_mask(schema_text, num_wrapping_dims=1).float()
-        # print(embedded_schema.size())
-        # with torch.no_grad():
-        # print(utterance)
         embedded_utterance = self._question_embedder(**utterance['tokens'])
         utterance_length = embedded_utterance.size(1)
-        # embedded_utterance = self._to_emb(embedded_utterance)
-        # print(embedded_utterance.size())
-        # print(utterance['tokens']['token_ids'].size())
-        # print(schema['linking'].size())
+
         utterance_mask = util.get_text_field_mask(utterance).float()
-
-        # batch_size, num_entities, num_entity_tokens, _ = embedded_schema.size()
-        # num_entities = max([len(world.db_context.knowledge_graph.entities) for world in worlds])
-        # num_question_tokens = utterance['tokens']['tokens'].size(1)
-        # num_question_tokens = embedded_utterance.size(1)
-        # entity_types: tensor with shape (batch_size, num_entities), where each entry is the
-        # entity's type id.
-        # entity_type_dict: Dict[int, int], mapping flattened_entity_index -> type_index
-        # These encode the same information, but for efficiency reasons later it's nice
-        # to have one version as a tensor and one that's accessible on the cpu.
-        # entity_types, entity_type_dict = parser_utils.get_type_vector(worlds, num_entities, embedded_schema.device)
-
-        # entity_type_embeddings = self._entity_type_encoder_embedding(entity_types)
-
-        # Compute entity and question word similarity.  We tried using cosine distance here, but
-        # because this similarity is the main mechanism that the model can use to push apart logit
-        # scores for certain actions (like "n -> 1" and "n -> -1"), this needs to have a larger
-        # output range than [-1, 1].
-        # question_entity_similarity = torch.bmm(embedded_schema.view(batch_size,
-        #                                                             num_entities * num_entity_tokens,
-        #                                                             self._embedding_dim),
-        #                                        torch.transpose(embedded_utterance, 1, 2))
-
-        # question_entity_similarity = question_entity_similarity.view(batch_size,
-        #                                                              num_entities,
-        #                                                              num_entity_tokens,
-        #                                                              num_question_tokens)
-        # (batch_size, num_entities, num_question_tokens)
-        # question_entity_similarity_max_score, _ = torch.max(question_entity_similarity, 2)
-
-        # (batch_size, num_entities, num_question_tokens, num_features)
-        # linking_features = schema['linking']
-
-        # linking_scores = question_entity_similarity_max_score
-
-        # feature_scores = self._linking_params(linking_features).squeeze(3)
-
-        # linking_scores = linking_scores + feature_scores
-
-        # (batch_size, num_question_tokens, num_entities)
-        # linking_probabilities = parser_utils.get_linking_probabilities(worlds, linking_scores.transpose(1, 2),
-                                                                # utterance_mask, entity_type_dict,self._num_entity_types)
-
-        # (batch_size, num_entities, num_neighbors) or None
-        # neighbor_indices = parser_utils.get_neighbor_indices(worlds, num_entities, linking_scores.device)
-
-        # if self._use_neighbor_similarity_for_linking and neighbor_indices is not None:
-            # (batch_size, num_entities, embedding_dim)
-            # encoded_table = self._entity_encoder(embedded_schema, schema_mask)
-
-            # Neighbor_indices is padded with -1 since 0 is a potential neighbor index.
-            # Thus, the absolute value needs to be taken in the index_select, and 1 needs to
-            # be added for the mask since that method expects 0 for padding.
-            # (batch_size, num_entities, num_neighbors, embedding_dim)
-            # embedded_neighbors = util.batched_index_select(encoded_table, torch.abs(neighbor_indices))
-
-            # neighbor_mask = util.get_text_field_mask({"tokens":{'ignored': neighbor_indices + 1}},
-                                                    #  num_wrapping_dims=1).float()
-
-            # Encoder initialized to easily obtain a masked average.
-            # neighbor_encoder = TimeDistributed(BagOfEmbeddingsEncoder(self._embedding_dim, averaged=True))
-            # (batch_size, num_entities, embedding_dim)
-            # embedded_neighbors = neighbor_encoder(embedded_neighbors, neighbor_mask)
-            # projected_neighbor_embeddings = self._neighbor_params(embedded_neighbors.float())
-
-            # (batch_size, num_entities, embedding_dim)
-            # entity_embeddings = torch.tanh(entity_type_embeddings + projected_neighbor_embeddings)
-        # else:
-            # (batch_size, num_entities, embedding_dim)
-            # entity_embeddings = torch.tanh(entity_type_embeddings)
-
-        # link_embedding = util.weighted_sum(entity_embeddings, linking_probabilities)
-        # print(link_embedding.size())
-        # encoder_input = torch.cat([link_embedding, embedded_utterance], 2)
-
-        # (batch_size, utterance_length, encoder_output_dim)
-        # print(encoder_input.size())
-        # encoder_outputs = self._dropout(self._encoder(encoder_input, utterance_mask))
-        # compute the relevance of each entity with the relevance GNN
-        # ent_relevance, ent_relevance_logits, ent_to_qst_lnk_probs = self._graph_pruning(worlds,
-        #                                                                                 encoder_outputs,
-        #                                                                                 entity_type_embeddings,
-        #                                                                                 linking_scores,
-        #                                                                                 utterance_mask,
-        #                                                                                 parser_utils.get_graph_adj_lists)
-        # save this for loss calculation
-        # self.predicted_relevance_logits = ent_relevance_logits
-
-        # multiply the embedding with the computed relevance
-        # graph_initial_embedding = entity_type_embeddings * ent_relevance
-        # entities_graph_encoding
-        # entities_graph_encoding = entity_type_embeddings
-
-        # encoder_output_dim = self._encoder.get_output_dim()
-        # entities_graph_encoding = parser_utils.get_schema_graph_encoding(self._gnn, worlds,graph_initial_embedding)
-        # graph_link_embedding = util.weighted_sum(entities_graph_encoding, linking_probabilities)
-        # encoder_outputs = torch.cat((
-        #     encoder_outputs,
-        #     graph_link_embedding
-        # ), dim=-1)
         encoder_output_dim = self._action_embedding_dim + self._encoder.get_output_dim()
 
-        # entities_ff = self._ent2ent_ff(entities_graph_encoding)
-        # linked_actions_linking_scores = torch.bmm(entities_ff, entities_ff.transpose(1, 2))
-
-
-        # This will be our initial hidden state and memory cell for the decoder LSTM.
-        # final_encoder_output = util.get_final_encoder_states(encoder_outputs,
-                                                            #  utterance_mask.long(),
-                                                            #  self._encoder.is_bidirectional())
         final_encoder_output =  torch.zeros([batch_size, encoder_output_dim],device=device) #TODO: fixme
         memory_cell = torch.zeros([batch_size, encoder_output_dim],device=device)  #OK
         encoder_outputs = torch.zeros([batch_size, utterance_length, encoder_output_dim],device=device) #TODO: fixme
@@ -283,9 +161,6 @@ class RatsqlEncoder(SchemaEncoder):
 
         initial_grammar_state = [self._create_grammar_state(worlds[i],
                                                             actions[i],
-                                                            None,
-                                                            None,
-                                                            None,
                                                             embedded_utterance[i],
                                                             schema_strings[i])
                                  for i in range(batch_size)]
@@ -304,25 +179,12 @@ class RatsqlEncoder(SchemaEncoder):
         
         loss = torch.tensor([0]).float().to(device)
 
-        # if action_sequence is not None:
-
-        #     graph_mask = util.get_mask_from_sequence_lengths(torch.tensor([len(w.entities_names) for w in worlds],
-        #                                                                    device=device),
-        #                                                       max_len_entities).float()
-        #     graph_loss = torch.nn.functional.binary_cross_entropy_with_logits(ent_relevance_logits.squeeze(-1),
-        #                                                                       oracle_relevance_score, reduction='none')
-        #     graph_loss = (graph_loss * graph_mask).sum() / graph_mask.sum()
-        #     loss += graph_loss
-        # print(initial_state,loss)
         return initial_state, loss
             
 
     def _create_grammar_state(self,
                               world: SpiderWorld,
                               possible_actions: List[ProductionRule],
-                              linking_scores: torch.Tensor,
-                              linked_actions_linking_scores: torch.Tensor,
-                              entity_types: torch.Tensor,
                               entity_graph_encoding: torch.Tensor,
                               schema_strings) -> GrammarStatelet:
         action_map = {}
@@ -379,21 +241,13 @@ class RatsqlEncoder(SchemaEncoder):
                     entity_ids = [0] 
                     # continue
 
-                entity_linking_scores = linking_scores[entity_ids]
+                entity_type_embeddings = entity_graph_encoding.index_select(
+                    dim=0,
+                    index=torch.tensor(entity_ids, device=entity_graph_encoding.device)
+                )
 
-                if linked_actions_linking_scores is not None:
-                    entity_action_linking_scores = linked_actions_linking_scores[entity_ids]
-
-                if not self._decoder_use_graph_entities:
-                    entity_type_tensor = entity_types[entity_ids]
-                    entity_type_embeddings = (self._entity_type_decoder_embedding(entity_type_tensor)
-                                              .to(entity_types.device)
-                                              .float())
-                else:
-                    entity_type_embeddings = entity_graph_encoding.index_select(
-                        dim=0,
-                        index=torch.tensor(entity_ids, device=entity_graph_encoding.device)
-                    )
+                entity_linking_scores = 2
+                entity_action_linking_scores = 1
                 translated_valid_actions[key]['linked'] = (entity_linking_scores,
                                                             entity_type_embeddings,
                                                             list(linked_action_ids),
