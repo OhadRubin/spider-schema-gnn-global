@@ -333,7 +333,7 @@ class SpiderRatsqlDatasetReader(DatasetReader):
         fields["enc"] = TextField(enc_field_list, self._utterance_token_indexers)
         
             # print(token_list)
-        fields['lengths'] = ArrayField(np.array(sizes_list),padding_value=0,dtype=np.int32)
+        fields['lengths'] = ArrayField(np.array([[0,len(q)-1],[len(q),len(q)+len(schema_strings)-1]]),dtype=np.int32)
         fields['offsets'] = ArrayField(np.array(get_offsets(sizes_list)),padding_value=0,dtype=np.int32)
         relation = self.compute_relations(desc,len(enc),len(q),len(c),range(len(c)+1),range(len(t)+1))
         fields['relation'] = ArrayField(relation,padding_value=-1,dtype=np.int32)

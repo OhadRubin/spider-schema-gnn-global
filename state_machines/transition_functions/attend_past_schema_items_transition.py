@@ -89,6 +89,8 @@ class AttendPastSchemaItemsTransitionFunction(BasicTransitionFunction):
                                                  for rnn_state in state.rnn_state])
 
         # (group_size, decoder_input_dim)
+        # print(attended_question.size())
+        # print(previous_action_embedding.size())
         projected_input = self._input_projection_layer(torch.cat([attended_question,
                                                                   previous_action_embedding], -1))
         decoder_input = self._activation(projected_input)
@@ -288,7 +290,6 @@ class AttendPastSchemaItemsTransitionFunction(BasicTransitionFunction):
                         decoder_outputs_states,
                         hidden_state[group_index].unsqueeze(0)
                     ), dim=0), decoder_outputs_ids + [action]
-
             new_rnn_state = RnnStatelet(hidden_state[group_index],
                                         memory_cell[group_index],
                                         action_embedding,
@@ -316,9 +317,12 @@ class AttendPastSchemaItemsTransitionFunction(BasicTransitionFunction):
 
         new_states = []
         for _, results in batch_action_probs.items():
-            if allowed_actions and not max_actions:
+            # if allowed_actions and not max_actions:
+            # print(results)
+            if False: #TODO: fix this
                 # If we're given a set of allowed actions, and we're not just keeping the top k of
                 # them, we don't need to do any sorting, so we can speed things up quite a bit.
+                # print(results)
                 for group_index, log_probs, _, action_embeddings, actions in results:
                     for log_prob, action_embedding, action in zip(log_probs, action_embeddings, actions):
                         if action in allowed_actions[group_index]:

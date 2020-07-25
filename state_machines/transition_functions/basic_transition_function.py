@@ -82,10 +82,13 @@ class BasicTransitionFunction(TransitionFunction[GrammarBasedState]):
         # action embedding, and we'll project that down to the decoder's `input_dim`, which we
         # arbitrarily set to be the same as `output_dim`.
         self._input_projection_layer = Linear(output_dim + action_embedding_dim, input_dim)
+        # print(f"self._input_projection_layer{self._input_projection_layer}")
+
         # Before making a prediction, we'll compute an attention over the input given our updated
         # hidden state. Then we concatenate those with the decoder state and project to
         # `action_embedding_dim` to make a prediction.
         self._output_projection_layer = Linear(output_dim + encoder_output_dim, action_embedding_dim)
+        # print(f"self._output_projection_layer{self._output_projection_layer}")
         if self._num_layers > 1:
             self._decoder_cell = LSTM(input_dim, output_dim, self._num_layers)
         else:
