@@ -67,9 +67,7 @@ logger = logging.getLogger(__name__)
 STOPWORDS = set(nltk.corpus.stopwords.words('english'))
 PUNKS = set(a for a in string.punctuation)
 
-def get_offsets(lengths):
-    e = np.cumsum(([0]+list(lengths))[:-1])
-    return list(zip(e+1,e+np.array(lengths)))
+
 
 def normalize_schema_constant(entity):
     col = "_".join(entity)
@@ -185,7 +183,8 @@ class SpiderRatsqlDatasetReader(DatasetReader):
         spacy_tokenizer = SpacyTokenizer(pos_tags=True)
         spacy_tokenizer.spacy.tokenizer.add_special_case(u'id', [{ORTH: u'id', LEMMA: u'id'}])
         # self._utterance_token_indexers = {"tokens":PretrainedTransformerIndexer("distilbert-base-uncased")}
-        self._utterance_token_indexers = {"tokens":PretrainedTransformerMismatchedIndexer("bert-base-uncased")}
+        # self._utterance_token_indexers = {"tokens":PretrainedTransformerMismatchedIndexer("bert-base-uncased")}
+        self._utterance_token_indexers = {"tokens":PretrainedTransformerIndexer("bert-base-uncased")}
         # self._tokenizer = self._utterance_token_indexers['tokens']._allennlp_tokenizer
         self._tokenizer = PretrainedTransformerTokenizer("bert-base-uncased")
         # self._utterance_token_indexers['tokens']._tokenizer = self._utterance_token_indexers['tokens']._allennlp_tokenizer
@@ -266,8 +265,8 @@ class SpiderRatsqlDatasetReader(DatasetReader):
             
             json_obj = json.load(data_file)
             for total_cnt, ex in tqdm(enumerate(json_obj)):
-                if total_cnt<2000:
-                    continue
+                # if total_cnt<2150:
+                    # continue
                 if total_cnt==self._max_instances:
                     break
                 query_tokens = None
@@ -301,36 +300,8 @@ class SpiderRatsqlDatasetReader(DatasetReader):
                          sql: List[str] = None,
                          orig=None):
         fields: Dict[str, Field] = {}
-        item = SpiderItem(
-            text=orig['question_toks'],
-            # text=[x.text for x in world.db_context.tokenized_utterance[1:-1]],
-            code=orig['sql'],
-            schema=self.schemas[db_id],
-            orig=orig,
-            orig_schema=self.schemas[db_id].orig)
-        # fields["item"] = MetadataField(item)
-        desc = self.preprocess_item(item,"train")
-        # fields["desc"] = MetadataField(desc)
 
-
-        schema_strings = [normalize_schema_constant(x) for x in desc['columns']+desc['tables']]
-        fields["schema_strings"] = MetadataField(schema_strings)    
-        q = [x.lower() for x in desc['question']]
-        c = ["_".join(x).lower() for x in  desc['columns']]
         
-        t = ["_".join(x).lower() for x in  desc['tables']]
-        t = ["<table>"+x for x in  t]
-        enc = q+c+t
-        cls_token = self._tokenizer.tokenize('a')[0]
-        enc_field_list = []
-        sizes_list = []
-        for x in self._tokenizer.batch_tokenize(enc):
-            token_list = [y for y in x[1:-1] if y.text not in ['_']]
-            sizes_list.append(len(token_list))
-            enc_field_list.extend(token_list) 
-        if len(enc_field_list)>512:
-            return None
-
         db_context = SpiderDBContext(db_id, utterance, tokenizer=self._tokenizer,
                                      tables_file=self._tables_file, dataset_path=self._dataset_path)
         table_field = SpiderKnowledgeGraphField(db_context.knowledge_graph,
@@ -341,12 +312,6 @@ class SpiderRatsqlDatasetReader(DatasetReader):
                                                 max_table_tokens=None)
 
         world = SpiderWorld(db_context, query=sql)
-        # print(world.entities_names)self.entity_tokens
-
-
-
-
-
 
         item = SpiderItem(
             # text=orig['question_toks'],
@@ -355,9 +320,7 @@ class SpiderRatsqlDatasetReader(DatasetReader):
             schema=self.schemas[db_id],
             orig=orig,
             orig_schema=self.schemas[db_id].orig)
-        # fields["item"] = MetadataField(item)
         desc = self.preprocess_item(item,"train")
-        # fields["desc"] = MetadataField(desc)
 
 
         schema_strings = [normalize_schema_constant(x) for x in desc['columns']+desc['tables']]
@@ -374,20 +337,20 @@ class SpiderRatsqlDatasetReader(DatasetReader):
         for i,x in  enumerate(list(range(len(q)))+schema_strings):
             for j,y in  enumerate(list(range(len(q)))+schema_strings):
                 rel_dict[x][y]= relation[i,j]
-        def get_table(table_name):
-            return 
 
-        new_entity_texts = []
+
+        entities = []
         for entity_text,entity in zip(world.db_context.entity_texts,world.db_context.knowledge_graph.entities):
             entity_text = entity_text.replace(" ","_")
             if entity.split(":")[0] == "column":
                 table = entity.split(":")[2]
                 table = world.db_context.schema[table].text.lower().replace(" ","_")
-                new_entity_texts.append(f"{table}@{entity_text}")
+                # col = world.db_context.schema[table].text.lower().replace(" ","_")
+                entities.append(f"{table}@{entity_text}")
+                
             else:
-                new_entity_texts.append(entity_text)
-        entities = new_entity_texts
-        # entities = list(world.entities_names.keys())
+                entities.append(entity_text)
+
         new_enc = list(range(len(q)))+entities
         new_relation = np.zeros([len(new_enc),len(new_enc)])
         try:
@@ -396,38 +359,62 @@ class SpiderRatsqlDatasetReader(DatasetReader):
                     new_relation[i][j] = rel_dict[x][y]
         except:
             
-            for x,y in  zip(sorted(entities),sorted(schema_strings[1:])):
-                print(x,y)
+            # for x,y in  zip(sorted(entities),sorted(schema_strings[1:])):
+                # print(x,y)
             # print()
             # print()
-            exit(0)
-        #     return None
+            # exit(0)
+            print("err")
+            return None
         #     # print(world.db_context.entity_tokens)
-
-        #     print(new_entity_texts)
-        #     # print(world.db_context.knowledge_graph.entities)
-        #     print(schema_strings)
             
-        #     # print(world.db_context.tokenized_utterance)
-            
-        #     # print(world.db_context.utterance)
-        #     exit(0)
-            # return None
 
+
+        # ebc
         cls_token = self._tokenizer.tokenize('a')[0]
+        eos_token = self._tokenizer.tokenize('a')[-1]
         enc_field_list = []
         sizes_list = []
-        for x in self._tokenizer.batch_tokenize(enc):
-            token_list = [y for y in x[1:-1] if y.text not in ['_']]
-            sizes_list.append(len(token_list))
-            enc_field_list.extend(token_list) 
+        # for x in self._tokenizer.batch_tokenize(enc):
+        #     token_list = [y for y in x[1:-1] if y.text not in ['_']]
+        #     sizes_list.append(len(token_list))
+        #     enc_field_list.extend(token_list) 
+        # world.db_context.tokenized_utterance
+        # enc__fi
+        
+        q= [[x] for x in world.db_context.tokenized_utterance[1:-1]]
+        # sizes_list.append(len(q))
+        schema_tokens = [x[1:-1] for x in world.db_context.entity_tokens]
+        enc_field_list = []
+        # sizes_list = []
+        # print(q+schema_tokens)
+        for x in [[cls_token]]+q+schema_tokens+[[eos_token]]:
+            # token_list = [y for y in x[1:-1] if y.text not in ['_']]
+            sizes_list.append(len(x))
+            enc_field_list.extend(x) 
+        # print(q+schema_strings)
+        # print(enc_field_list)
+        # enc_field_list.extend() 
+        # sizes_list.append(len(world.db_context.tokenized_utterance[1:-1]))
+
         if len(enc_field_list)>512:
             return None
-
+        # print(enc_field_list)
+        # print(enc)
+        # print(enc_field_list)
+        # print(world.db_context.tokenized_utterance)
+        # print(world.db_context.entity_tokens)
+        # exit(0)
+        def get_offsets(lengths):
+            e = np.cumsum(([0]+list(lengths))[:-1])
+            return list(zip(e+1,e+np.array(lengths)))
         fields['relation'] = ArrayField(new_relation,padding_value=-1,dtype=np.int32)
-
-        fields['lengths'] = ArrayField(np.array([[0,len(q)-1],[len(q),len(q)+len(schema_strings)-1]]),dtype=np.int32)
-        fields['offsets'] = ArrayField(np.array(get_offsets(sizes_list)),padding_value=0,dtype=np.int32)
+        # q = world.db_context.tokenized_utterance
+        offsets = get_offsets(sizes_list[1:-1])
+        # print(offsets)
+        # exit(0)
+        fields['lengths'] = ArrayField(np.array([[0,len(q)-1],[len(q),len(q)+len(schema_tokens)-1]]),dtype=np.int32)
+        fields['offsets'] = ArrayField(np.array(offsets),padding_value=0,dtype=np.int32)
         fields["enc"] = TextField(enc_field_list, self._utterance_token_indexers)
 
 

@@ -81,6 +81,7 @@ class SpiderParser(Model):
         self._acc_multi = Average()
 
         self._schema_encoder = schema_encoder
+        self._schema_encoder._vocab = vocab
 
         self._max_decoding_steps = max_decoding_steps
         if "_add_action_bias" in self._schema_encoder.__dict__: 

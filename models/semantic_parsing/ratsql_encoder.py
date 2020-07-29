@@ -50,7 +50,7 @@ import numpy as np
 import  modules.transformer as transformer
 from models.semantic_parsing.schema_encoder import SchemaEncoder
 from allennlp.modules.matrix_attention import BilinearMatrixAttention
-
+from allennlp.data.token_indexers import PretrainedTransformerMismatchedIndexer,PretrainedTransformerIndexer
 
 @SchemaEncoder.register("ratsql")
 class RatsqlEncoder(SchemaEncoder):
@@ -67,14 +67,17 @@ class RatsqlEncoder(SchemaEncoder):
                  use_neighbor_similarity_for_linking: bool = True,
                  dropout: float = 0.0) -> None:
         super().__init__()
-        
+        self._vocab = None
         self._encoder = encoder
         if dropout > 0:
             self._dropout = torch.nn.Dropout(p=dropout)
         else:
             self._dropout = lambda x: x
         # self._question_embedder = question_embedder
-        self._question_embedder = PretrainedTransformerMismatchedEmbedder("bert-base-uncased")
+        # self._question_embedder = PretrainedTransformerMismatchedEmbedder("bert-base-uncased")
+        # self._tokenizer = PretrainedTransformerMismatchedIndexer("bert-base-uncased")
+        self._question_embedder = PretrainedTransformerEmbedder("bert-base-uncased")
+        self._tokenizer = PretrainedTransformerIndexer("bert-base-uncased")
         # self._question_embedder = PretrainedTransformerEmbedder("distilbert-base-uncased")
         num_layers = 4
         num_heads = 8
@@ -125,7 +128,6 @@ class RatsqlEncoder(SchemaEncoder):
         self._use_neighbor_similarity_for_linking = use_neighbor_similarity_for_linking
         
         num_actions = 112
-        num_actions = 500 #TODO: fixme
         
         if self._add_action_bias:
             input_action_dim = action_embedding_dim + 1
@@ -171,15 +173,23 @@ class RatsqlEncoder(SchemaEncoder):
         utterance_schema =utterance
         batch_size = len(worlds)
         device = utterance_schema['tokens']["token_ids"].device
+        def to_text(token_list):
+            return self._tokenizer.indices_to_tokens({"token_ids":token_list.squeeze().tolist()},self._vocab)
+        # print(self._vocab)
+        # print(to_text(utterance_schema['tokens']["token_ids"]))
         
-        utterance_schema['tokens']['offsets']=offsets
-        
+        # utterance_schema['tokens']['offsets']=offsets
+        # token_idx,_ = parser_utils.batched_span_select(utterance_schema['tokens']["token_ids"].unsqueeze(-1),offsets) 
         embedded_utterance_schema = self._question_embedder(**utterance_schema['tokens'])
+        embedded_utterance_schema, \
+                    embedded_utterance_schema_mask = parser_utils.batched_span_select(embedded_utterance_schema,offsets)
+        embedded_utterance_schema = util.masked_mean(embedded_utterance_schema,
+                                                    embedded_utterance_schema_mask.unsqueeze(-1),dim=-2)
+        
 
             
         
         relation_mask = torch.ones_like(relation) #TODO: fixme
-        # relation_mask = torch.ones([batch_size,embedded_utterance_schema.size(1),embedded_utterance_schema.size(1)]) #TODO: fixme
 
         enriched_utterance_schema = self.rat_encoder(embedded_utterance_schema, relation.long(),relation_mask)
 
@@ -249,7 +259,7 @@ class RatsqlEncoder(SchemaEncoder):
                                           grammar_state=initial_grammar_state,
                                           sql_state=initial_sql_state,
                                           possible_actions=actions,
-                                          action_entity_mapping=[w.get_action_entity_mapping() for w in worlds]) #TODO: fixme (get_action_entity_mapping)
+                                          action_entity_mapping=[w.get_action_entity_mapping() for w in worlds]) 
         
         loss = torch.tensor([0]).float().to(device)
 
@@ -270,9 +280,9 @@ class RatsqlEncoder(SchemaEncoder):
 
         valid_actions = world.valid_actions
         entity_map = {}
-        # entities = world.entities_names
+        entities = world.entities_names
 
-        for entity_index, entity in enumerate(schema_strings):
+        for entity_index, entity in enumerate(entities):
             entity_map[entity] = entity_index
 
         translated_valid_actions: Dict[str, Dict[str, Tuple[torch.Tensor, torch.Tensor, List[int]]]] = {}
@@ -314,9 +324,9 @@ class RatsqlEncoder(SchemaEncoder):
                 for entity in entities:
                     if entity in entity_map:
                         entity_ids.append(entity_map[entity])
-                if not entity_ids:
+                # if not entity_ids:
                     #TODO: for non_literal_num we just take the first column -  need to fix this!!! maybe move this to global?
-                    entity_ids = [0] 
+                    # entity_ids = [0] 
                     # continue
                 # print(entity_graph_encoding.size(),entity_ids)
                 # print(linking_scores.size())
@@ -325,6 +335,8 @@ class RatsqlEncoder(SchemaEncoder):
                 # entity_ids_tensor = torch.tensor(entity_ids, device=entity_graph_encoding.device)
                 # print(entity_ids)
                 entity_ids_tensor = torch.tensor(entity_ids)
+                # print(entity_ids_tensor)
+                # print(entity_graph_encoding)
                 
                 # print(entity_ids_tensor)
                 entity_ids_tensor = entity_ids_tensor.to(entity_graph_encoding.device).long()

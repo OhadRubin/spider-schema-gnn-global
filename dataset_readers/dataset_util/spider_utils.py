@@ -86,12 +86,12 @@ def read_dataset_values(db_id: str, dataset_path: str, tables: List[str]):
 
     for table in tables:
         try:
-            cursor.execute(f"SELECT * FROM {table.name} LIMIT 5000")
+            cursor.execute(f"SELECT * FROM {table.name} LIMIT 10") #TODO: fixme
             values[table] = cursor.fetchall()
         except:
             conn.text_factory = lambda x: str(x, 'latin1')
             cursor = conn.cursor()
-            cursor.execute(f"SELECT * FROM {table.name} LIMIT 5000")
+            cursor.execute(f"SELECT * FROM {table.name} LIMIT 10") #TODO: fixme
             values[table] = cursor.fetchall()
 
     return values
