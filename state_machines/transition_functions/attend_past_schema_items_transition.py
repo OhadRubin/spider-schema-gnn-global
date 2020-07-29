@@ -337,6 +337,8 @@ class AttendPastSchemaItemsTransitionFunction(BasicTransitionFunction):
                 for group_index, log_probs, _, action_embeddings, actions, _, _ in results:
                     if not actions:
                         continue
+                    # else:
+                        # print(actions)
 
                     group_indices.extend([group_index] * len(actions))
                     group_log_probs.append(log_probs)
@@ -349,14 +351,27 @@ class AttendPastSchemaItemsTransitionFunction(BasicTransitionFunction):
                 log_probs = torch.cat(group_log_probs, dim=0)
                 action_embeddings = torch.cat(group_action_embeddings, dim=0)
                 log_probs_cpu = log_probs.data.cpu().numpy().tolist()
-                batch_states = [(log_probs_cpu[i],
-                                 group_indices[i],
-                                 log_probs[i],
-                                 action_embeddings[i],
-                                 group_actions[i])
-                                for i in range(len(group_actions))
+                # if len(log_probs_cpu)!=len(group_indices):
+                    # print(results[-1])
+                    # continue
+                batch_states_idx = [i for i in range(len(group_actions))
                                 if (not allowed_actions or
                                     group_actions[i] in allowed_actions[group_indices[i]])]
+
+                # print(max(batch_states_idx))
+                # print()
+                # print([len(x) for x in [log_probs_cpu,group_indices,log_probs,action_embeddings,group_actions]])
+                try:
+                    batch_states = [(log_probs_cpu[i],
+                        group_indices[i],
+                        log_probs[i],
+                        action_embeddings[i],
+                        group_actions[i])
+                            for i in batch_states_idx]
+                except:
+                    print([len(x) for x in [log_probs_cpu,group_indices,log_probs,action_embeddings,group_actions]])
+                    exit(0)
+
                 # We use a key here to make sure we're not trying to compare anything on the GPU.
                 batch_states.sort(key=lambda x: x[0], reverse=True)
                 if max_actions:

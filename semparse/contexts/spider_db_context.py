@@ -41,7 +41,7 @@ class SpiderDBContext:
         self.utterance = utterance
 
         tokenized_utterance = tokenizer.tokenize(utterance.lower())
-        self.tokenized_utterance = [Token(text=t.text, lemma_=t.lemma_) for t in tokenized_utterance]
+        self.tokenized_utterance = [t for t in tokenized_utterance]
 
         if db_id not in SpiderDBContext.schemas:
             SpiderDBContext.schemas = read_dataset_schema(self.tables_file)
@@ -49,10 +49,14 @@ class SpiderDBContext:
 
         self.knowledge_graph = self.get_db_knowledge_graph(db_id)
 
-        entity_texts = [self.knowledge_graph.entity_text[entity].lower()
+        self.entity_texts = [self.knowledge_graph.entity_text[entity].lower()
                         for entity in self.knowledge_graph.entities]
-        entity_tokens = tokenizer.batch_tokenize(entity_texts)
-        self.entity_tokens = [[Token(text=t.text, lemma_=t.lemma_) for t in et] for et in entity_tokens]
+
+        # self.entity_texts = [self.knowledge_graph.entity_text[entity].lower()
+        #                 for entity in self.knowledge_graph.entities]
+        entity_tokens = tokenizer.batch_tokenize(self.entity_texts)
+        # self.entity_tokens = [[Token(text=t.text, lemma_=t.lemma_) for t in et] for et in entity_tokens]
+        self.entity_tokens = [[t for t in et] for et in entity_tokens]
 
     @staticmethod
     def entity_key_for_column(table_name: str, column: TableColumn) -> str:
@@ -174,6 +178,7 @@ class SpiderDBContext:
         # extracted_numbers = self._get_numbers_from_tokens(self.question_tokens)
         # filter out number entities to avoid repetition
         expanded_entities = []
+        return [] #TODO: fixme
         for entity in self._expand_entities(self.tokenized_utterance, entity_data, string_column_mapping):
             if entity["token_type"] == "text":
                 expanded_entities.append((f"string:{entity['value']}", entity['token_in_columns']))

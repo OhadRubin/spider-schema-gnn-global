@@ -39,35 +39,36 @@ class Table:
 
 def read_dataset_schema(schema_path: str) -> Dict[str, List[Table]]:
     schemas: Dict[str, Dict[str, Table]] = defaultdict(dict)
-    dbs_json_blob = json.load(open(schema_path, "r"))
-    for db in dbs_json_blob:
-        db_id = db['db_id']
+    with open(schema_path, "r") as f:
+        dbs_json_blob = json.load(f)
+        for db in dbs_json_blob:
+            db_id = db['db_id']
 
-        column_id_to_table = {}
-        column_id_to_column = {}
+            column_id_to_table = {}
+            column_id_to_column = {}
 
-        for i, (column, text, column_type) in enumerate(zip(db['column_names_original'], db['column_names'], db['column_types'])):
-            table_id, column_name = column
-            _, column_text = text
+            for i, (column, text, column_type) in enumerate(zip(db['column_names_original'], db['column_names'], db['column_types'])):
+                table_id, column_name = column
+                _, column_text = text
 
-            table_name = db['table_names_original'][table_id]
+                table_name = db['table_names_original'][table_id].lower()
 
-            if table_name not in schemas[db_id]:
-                table_text = db['table_names'][table_id]
-                schemas[db_id][table_name] = Table(table_name, table_text, [])
+                if table_name not in schemas[db_id]:
+                    table_text = db['table_names'][table_id]
+                    schemas[db_id][table_name] = Table(table_name, table_text, [])
 
-            if column_name == "*":
-                continue
+                if column_name == "*":
+                    continue
 
-            is_primary_key = i in db['primary_keys']
-            table_column = TableColumn(column_name.lower(), column_text, column_type, is_primary_key, None)
-            schemas[db_id][table_name].columns.append(table_column)
-            column_id_to_table[i] = table_name
-            column_id_to_column[i] = table_column
+                is_primary_key = i in db['primary_keys']
+                table_column = TableColumn(column_name.lower(), column_text, column_type, is_primary_key, None)
+                schemas[db_id][table_name].columns.append(table_column)
+                column_id_to_table[i] = table_name
+                column_id_to_column[i] = table_column
 
-        for (c1, c2) in db['foreign_keys']:
-            foreign_key = column_id_to_table[c2] + ':' + column_id_to_column[c2].name
-            column_id_to_column[c1].foreign_key = foreign_key
+            for (c1, c2) in db['foreign_keys']:
+                foreign_key = column_id_to_table[c2] + ':' + column_id_to_column[c2].name
+                column_id_to_column[c1].foreign_key = foreign_key
 
     return {**schemas}
 

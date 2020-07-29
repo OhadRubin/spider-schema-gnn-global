@@ -38,7 +38,7 @@ from state_machines.states.rnn_statelet import RnnStatelet
 from allennlp_semparse.state_machines.trainers import MaximumMarginalLikelihood
 from allennlp.training.metrics import Average
 from overrides import overrides
-from allennlp.modules.token_embedders import PretrainedTransformerMismatchedEmbedder
+from allennlp.modules.token_embedders import PretrainedTransformerMismatchedEmbedder,PretrainedTransformerEmbedder
 from semparse.contexts.spider_context_utils import action_sequence_to_sql
 from semparse.worlds.spider_world import SpiderWorld
 from state_machines.states.grammar_based_state import GrammarBasedState
@@ -74,7 +74,8 @@ class RatsqlEncoder(SchemaEncoder):
         else:
             self._dropout = lambda x: x
         # self._question_embedder = question_embedder
-        self._question_embedder = PretrainedTransformerMismatchedEmbedder("distilbert-base-uncased")
+        self._question_embedder = PretrainedTransformerMismatchedEmbedder("bert-base-uncased")
+        # self._question_embedder = PretrainedTransformerEmbedder("distilbert-base-uncased")
         num_layers = 4
         num_heads = 8
         hidden_size = 768
@@ -124,6 +125,7 @@ class RatsqlEncoder(SchemaEncoder):
         self._use_neighbor_similarity_for_linking = use_neighbor_similarity_for_linking
         
         num_actions = 112
+        num_actions = 500 #TODO: fixme
         
         if self._add_action_bias:
             input_action_dim = action_embedding_dim + 1
@@ -169,10 +171,15 @@ class RatsqlEncoder(SchemaEncoder):
         utterance_schema =utterance
         batch_size = len(worlds)
         device = utterance_schema['tokens']["token_ids"].device
+        
         utterance_schema['tokens']['offsets']=offsets
+        
         embedded_utterance_schema = self._question_embedder(**utterance_schema['tokens'])
+
+            
         
         relation_mask = torch.ones_like(relation) #TODO: fixme
+        # relation_mask = torch.ones([batch_size,embedded_utterance_schema.size(1),embedded_utterance_schema.size(1)]) #TODO: fixme
 
         enriched_utterance_schema = self.rat_encoder(embedded_utterance_schema, relation.long(),relation_mask)
 
@@ -187,7 +194,7 @@ class RatsqlEncoder(SchemaEncoder):
         utterance = torch.squeeze(utterance, 1)
         schema = torch.squeeze(schema, 1)
         # for x in [utterance_mask,schema_mask,utterance,schema]:
-            # print(x.size())
+        #     print(x.size())
 
         
         
@@ -231,6 +238,9 @@ class RatsqlEncoder(SchemaEncoder):
                                  for i in range(batch_size)]
 
         initial_sql_state = [SqlState(actions[i], self._parse_sql_on_decoding) for i in range(batch_size)]
+
+        # for entity_index, entity in enumerate(schema_strings):
+        #     entity_map[entity] = entity_index
 
         initial_state = GrammarBasedState(batch_indices=list(range(batch_size)),
                                           action_history=[[] for _ in range(batch_size)],
@@ -287,8 +297,10 @@ class RatsqlEncoder(SchemaEncoder):
 
             if global_actions:
                 global_action_tensors, global_action_ids = zip(*global_actions)
+                # print(global_action_tensors)
                 global_action_tensor = torch.cat(global_action_tensors, dim=0).to(
                     global_action_tensors[0].device).long()
+                # print(global_action_tensor)
                 global_input_embeddings = self._action_embedder(global_action_tensor)
                 global_output_embeddings = self._output_action_embedder(global_action_tensor)
                 translated_valid_actions[key]['global'] = (global_input_embeddings,
@@ -306,17 +318,27 @@ class RatsqlEncoder(SchemaEncoder):
                     #TODO: for non_literal_num we just take the first column -  need to fix this!!! maybe move this to global?
                     entity_ids = [0] 
                     # continue
-
-                entity_type_embeddings = entity_graph_encoding.index_select(
-                    dim=0,
-                    index=torch.tensor(entity_ids, device=entity_graph_encoding.device)
-                )
+                # print(entity_graph_encoding.size(),entity_ids)
+                # print(linking_scores.size())
+                # print(linked_actions_linking_scores.size())
+                # print(entity_graph_encoding.device)
+                # entity_ids_tensor = torch.tensor(entity_ids, device=entity_graph_encoding.device)
+                # print(entity_ids)
+                entity_ids_tensor = torch.tensor(entity_ids)
+                
+                # print(entity_ids_tensor)
+                entity_ids_tensor = entity_ids_tensor.to(entity_graph_encoding.device).long()
+                # entity_graph_encoding = entity_graph_encoding.continous()
+                entity_type_embeddings = entity_graph_encoding.index_select(dim=0,index=entity_ids_tensor)
                 entity_linking_scores = linking_scores[entity_ids]
                 entity_action_linking_scores = linked_actions_linking_scores[entity_ids]
+                # translated_valid_actions[key]['linked'] = (entity_linking_scores,
+                #                                             entity_type_embeddings,
+                #                                             list(linked_action_ids),
+                #                                             entity_action_linking_scores)
                 translated_valid_actions[key]['linked'] = (entity_linking_scores,
-                                                            entity_type_embeddings,
-                                                            list(linked_action_ids),
-                                                            entity_action_linking_scores)
+                                                               entity_type_embeddings,
+                                                               list(linked_action_ids))
         # print(translated_valid_actions)
 
         return GrammarStatelet(['statement'],

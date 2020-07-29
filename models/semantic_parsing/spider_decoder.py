@@ -100,15 +100,21 @@ class SpiderParser(Model):
         self._beam_search = decoder_beam_search
         self._decoder_trainer = MaximumMarginalLikelihood(training_beam_size)
 
-        self._transition_function = AttendPastSchemaItemsTransitionFunction(encoder_output_dim=self._schema_encoder._encoder_output_dim,
-                                                                            action_embedding_dim=self._schema_encoder._action_embedding_dim,
-                                                                            input_attention=input_attention,
-                                                                            past_attention=past_attention,
-                                                                            predict_start_type_separately=False,
-                                                                            add_action_bias=self._add_action_bias,
-                                                                            dropout=dropout,
-                                                                            num_layers=self._decoder_num_layers)
-
+        # self._transition_function = AttendPastSchemaItemsTransitionFunction(encoder_output_dim=self._schema_encoder._encoder_output_dim,
+        #                                                                     action_embedding_dim=self._schema_encoder._action_embedding_dim,
+        #                                                                     input_attention=input_attention,
+        #                                                                     past_attention=past_attention,
+        #                                                                     predict_start_type_separately=False,
+        #                                                                     add_action_bias=self._add_action_bias,
+        #                                                                     dropout=dropout,
+        #                                                                     num_layers=self._decoder_num_layers)
+        self._transition_function = LinkingTransitionFunction(encoder_output_dim=self._schema_encoder._encoder_output_dim,
+                                                                action_embedding_dim=self._schema_encoder._action_embedding_dim,
+                                                                input_attention=input_attention,
+                                                                predict_start_type_separately=False,
+                                                                add_action_bias=self._add_action_bias,
+                                                                dropout=dropout,
+                                                                num_layers=self._decoder_num_layers)
 
 
         # TODO: Remove hard-coded dirs
