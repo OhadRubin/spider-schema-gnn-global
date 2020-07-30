@@ -158,41 +158,41 @@ class PreprocessedSchema:
     primary_keys = attr.ib(factory=list)
 
 
-
-
 @DatasetReader.register("spider_ratsql")
 class SpiderRatsqlDatasetReader(DatasetReader):
     def __init__(self,
-                lazy: bool = False,
-                question_token_indexers: Dict[str, TokenIndexer] = None,
-                keep_if_unparsable: bool = True,
-                tables_file: str = None,
-                dataset_path: str = 'dataset/database',
-                cache_directory: str = "cache/train",
-                include_table_name_in_column=True,
-                fix_issue_16_primary_keys=False,
-                qq_max_dist=2,
-                cc_max_dist=2,
-                tt_max_dist=2,
-                max_instances = None):
+                 lazy: bool = False,
+                 question_token_indexers: Dict[str, TokenIndexer] = None,
+                 keep_if_unparsable: bool = True,
+                 tables_file: str = None,
+                 dataset_path: str = 'dataset/database',
+                 cache_directory: str = "cache/train",
+                 include_table_name_in_column=True,
+                 fix_issue_16_primary_keys=False,
+                 qq_max_dist=2,
+                 cc_max_dist=2,
+                 tt_max_dist=2,
+                 max_instances=None):
 
-        super().__init__(lazy=lazy,cache_directory=cache_directory,max_instances=max_instances)
+        super().__init__(lazy=lazy, cache_directory=cache_directory, max_instances=max_instances)
         # super().__init__(lazy=lazy,cache_directory=cache_directory,max_instances=None)
         self._max_instances = max_instances
         # default spacy tokenizer splits the common token 'id' to ['i', 'd'], we here write a manual fix for that
-        spacy_tokenizer = SpacyTokenizer(pos_tags=True)
-        spacy_tokenizer.spacy.tokenizer.add_special_case(u'id', [{ORTH: u'id', LEMMA: u'id'}])
+        # spacy_tokenizer = SpacyTokenizer(pos_tags=True)
+        # spacy_tokenizer.spacy.tokenizer.add_special_case(u'id', [{ORTH: u'id', LEMMA: u'id'}])
         # self._utterance_token_indexers = {"tokens":PretrainedTransformerIndexer("distilbert-base-uncased")}
         # self._utterance_token_indexers = {"tokens":PretrainedTransformerMismatchedIndexer("bert-base-uncased")}
-        self._utterance_token_indexers = {"tokens":PretrainedTransformerIndexer("bert-base-uncased")}
-        # self._tokenizer = self._utterance_token_indexers['tokens']._allennlp_tokenizer
-        self._tokenizer = PretrainedTransformerTokenizer("bert-base-uncased")
+
+
+        # self._utterance_token_indexers = {"tokens":PretrainedTransformerIndexer("bert-base-uncased")}
+        self._utterance_token_indexers = question_token_indexers
+        
+        self._tokenizer = self._utterance_token_indexers['tokens']._allennlp_tokenizer
         # self._utterance_token_indexers['tokens']._tokenizer = self._utterance_token_indexers['tokens']._allennlp_tokenizer
         # self._tokenizer = spacy_tokenizer
 
         # self._utterance_token_indexers = question_token_indexers or {'tokens': SingleIdTokenIndexer()}
         
-
         self._keep_if_unparsable = keep_if_unparsable
 
         self._tables_file = tables_file
@@ -272,9 +272,10 @@ class SpiderRatsqlDatasetReader(DatasetReader):
                 query_tokens = None
                 if 'query_toks' in ex:
 
-                    ex = fix_number_value(ex)
+                    
 
                     try:
+                        ex = fix_number_value(ex)
                         query_tokens = disambiguate_items(ex['db_id'], ex['query_toks_no_value'],
                                                                 self._tables_file, allow_aliases=False)
                     except Exception as e:

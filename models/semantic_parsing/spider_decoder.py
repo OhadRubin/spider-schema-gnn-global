@@ -34,7 +34,7 @@ from allennlp_semparse.state_machines.states import GrammarStatelet
 from torch.nn import Parameter
 
 # from models.semantic_parsing.graph_pruning import GraphPruning
-# from models.semantic_parsing import parser_utils
+from models.semantic_parsing import parser_utils
 from semparse.worlds.evaluate_spider import evaluate
 from state_machines.states.rnn_statelet import RnnStatelet
 from allennlp_semparse.state_machines.trainers import MaximumMarginalLikelihood

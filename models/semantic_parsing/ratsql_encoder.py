@@ -55,29 +55,29 @@ from allennlp.data.token_indexers import PretrainedTransformerMismatchedIndexer,
 @SchemaEncoder.register("ratsql")
 class RatsqlEncoder(SchemaEncoder):
     def __init__(self,
-                 encoder: Seq2SeqEncoder,
-                 entity_encoder: Seq2VecEncoder,
+                #  encoder: Seq2SeqEncoder,
+                #  entity_encoder: Seq2VecEncoder,
                  question_embedder: TextFieldEmbedder,
                  action_embedding_dim: int,
                  decoder_use_graph_entities: bool = True,
-                 gnn_timesteps: int = 2,
-                 pruning_gnn_timesteps: int = 2,
+                #  gnn_timesteps: int = 2,
+                #  pruning_gnn_timesteps: int = 2,
                  parse_sql_on_decoding: bool = True,
                  add_action_bias: bool = True,
-                 use_neighbor_similarity_for_linking: bool = True,
+                #  use_neighbor_similarity_for_linking: bool = True,
                  dropout: float = 0.0) -> None:
         super().__init__()
         self._vocab = None
-        self._encoder = encoder
+        # self._encoder = encoder
         if dropout > 0:
             self._dropout = torch.nn.Dropout(p=dropout)
         else:
             self._dropout = lambda x: x
-        # self._question_embedder = question_embedder
+        self._question_embedder = question_embedder
         # self._question_embedder = PretrainedTransformerMismatchedEmbedder("bert-base-uncased")
         # self._tokenizer = PretrainedTransformerMismatchedIndexer("bert-base-uncased")
-        self._question_embedder = PretrainedTransformerEmbedder("bert-base-uncased")
-        self._tokenizer = PretrainedTransformerIndexer("bert-base-uncased")
+        # self._question_embedder = PretrainedTransformerEmbedder("bert-base-uncased")
+        # self._tokenizer = PretrainedTransformerIndexer("bert-base-uncased")
         # self._question_embedder = PretrainedTransformerEmbedder("distilbert-base-uncased")
         num_layers = 4
         num_heads = 8
@@ -103,12 +103,12 @@ class RatsqlEncoder(SchemaEncoder):
             tie_layers)
             
 
-        self._entity_encoder = TimeDistributed(entity_encoder)
+        # self._entity_encoder = TimeDistributed(entity_encoder)
 
         self._num_entity_types = 9
         self._embedding_dim = self._question_embedder.get_output_dim()
-        self._att_question_schema = BilinearMatrixAttention(self._embedding_dim,self._embedding_dim)
-        self._att_schema_schema = BilinearMatrixAttention(self._embedding_dim,self._embedding_dim)
+        self._att_question_schema = BilinearMatrixAttention(self._embedding_dim, self._embedding_dim)
+        self._att_schema_schema = BilinearMatrixAttention(self._embedding_dim, self._embedding_dim)
 
         # self._embedding_dim = 200
         self._entity_type_encoder_embedding = Embedding(self._embedding_dim, self._num_entity_types)
@@ -125,7 +125,7 @@ class RatsqlEncoder(SchemaEncoder):
 
         self._parse_sql_on_decoding = parse_sql_on_decoding
         self._decoder_use_graph_entities = decoder_use_graph_entities
-        self._use_neighbor_similarity_for_linking = use_neighbor_similarity_for_linking
+        # self._use_neighbor_similarity_for_linking = use_neighbor_similarity_for_linking
         
         num_actions = 112
         
@@ -136,11 +136,11 @@ class RatsqlEncoder(SchemaEncoder):
         self._action_embedder = Embedding(num_embeddings=num_actions, embedding_dim=input_action_dim)
         self._output_action_embedder = Embedding(num_embeddings=num_actions, embedding_dim=action_embedding_dim)
         
-        self._encoder_output_dim = self._action_embedding_dim+self._embedding_dim
+        self._encoder_output_dim = self._action_embedding_dim + self._embedding_dim
         self._to_emb = torch.nn.Linear( self._embedding_dim, self._encoder_output_dim)
         # # self.encoder_output_dim = 
 
-        self._first_action_embedding = torch.nn.Parameter(torch.FloatTensor(self._action_embedding_dim))
+        self._first_action_embedding = torch.nn.Parameter(torch.FloatTensor(self._action_embedding_dim ) )
         self._first_attended_utterance = torch.nn.Parameter(torch.FloatTensor(self._encoder_output_dim))
         self._first_attended_output = torch.nn.Parameter(torch.FloatTensor(self._action_embedding_dim))
         torch.nn.init.normal_(self._first_action_embedding)
@@ -173,23 +173,30 @@ class RatsqlEncoder(SchemaEncoder):
         utterance_schema =utterance
         batch_size = len(worlds)
         device = utterance_schema['tokens']["token_ids"].device
-        def to_text(token_list):
-            return self._tokenizer.indices_to_tokens({"token_ids":token_list.squeeze().tolist()},self._vocab)
+        # def to_text(token_list):
+            # return self._tokenizer.indices_to_tokens({"token_ids":token_list.squeeze().tolist()},self._vocab)
         # print(self._vocab)
         # print(to_text(utterance_schema['tokens']["token_ids"]))
+        # print(utterance_schema)
+        # utterance_schema['tokens']['offsets']=offsets 
+        # token_idx,_ = parser_utils.batched_span_select(utterance_schema['tokens']["token_ids"].unsqueeze(-1),offsets)
         
-        # utterance_schema['tokens']['offsets']=offsets
-        # token_idx,_ = parser_utils.batched_span_select(utterance_schema['tokens']["token_ids"].unsqueeze(-1),offsets) 
-        embedded_utterance_schema = self._question_embedder(**utterance_schema['tokens'])
+        embedded_utterance_schema = self._question_embedder(utterance_schema)
+        # print("hi")
+        # embedded_utterance_schema = self._question_embedder(**utterance_schema['tokens'])
         embedded_utterance_schema, \
-                    embedded_utterance_schema_mask = parser_utils.batched_span_select(embedded_utterance_schema,offsets)
+                    embedded_utterance_schema_mask = parser_utils.batched_span_select(embedded_utterance_schema, offsets)
         embedded_utterance_schema = util.masked_mean(embedded_utterance_schema,
                                                     embedded_utterance_schema_mask.unsqueeze(-1),dim=-2)
         
 
-            
+             
         
-        relation_mask = torch.ones_like(relation) #TODO: fixme
+        relation_mask = (relation>=0).float() #TODO: fixme
+        torch.abs(relation,out=relation)
+        
+
+
 
         enriched_utterance_schema = self.rat_encoder(embedded_utterance_schema, relation.long(),relation_mask)
 

@@ -11,8 +11,10 @@ cache/
 
 schema/
 dataset/
-train_configs/
+# train_configs/
 
 gnn.tar.gz
 
 gnn_global_models.tar.gz
+*.pyc
+.ipynb_checkpoints
