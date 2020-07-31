@@ -1,17 +1,33 @@
 {
-  "numpy_seed": 5,
+  "dataset_reader": {
+    "cache_directory": "cache/new5train",
+    "dataset_path": "dataset/database",
+    "keep_if_unparsable": false,
+    "lazy": false,
+    "max_instances": null,
+    "question_token_indexers": {
+      "tokens": {
+        "model_name": "bert-base-uncased",
+        "type": "pretrained_transformer"
+      }
+    },
+    "tables_file": "dataset/tables.json",
+    "type": "spider_ratsql"
+  },
+  "train_data_path": "dataset/train_spider.json",
   "data_loader": {
-    "batch_size": 15
+    "batch_size": 10
   },
   "validation_data_loader": {
     "batch_size": 1
   },
+  "validation_data_path": "dataset/dev.json",
   "validation_dataset_reader": {
-    "cache_directory": "cache/val",
+    "cache_directory": "cache/new5val",
     "dataset_path": "dataset/database",
     "keep_if_unparsable": true,
     "lazy": false,
-    "max_instances": 10,
+    "max_instances": null,
     "question_token_indexers": {
       "tokens": {
         "model_name": "bert-base-uncased",
@@ -35,7 +51,7 @@
       "type": "dot_product"
     },
     "schema_encoder": {
-      "action_embedding_dim": 768,
+      "action_embedding_dim": 300,
       "dropout": 0.5,
       "parse_sql_on_decoding": true,
       "question_embedder": {
@@ -51,24 +67,6 @@
     "training_beam_size": 1,
     "type": "spider"
   },
-  "pytorch_seed": 5,
-  "train_data_path": "dataset/train_spider.json",
-  "validation_data_path": "dataset/dev.json",
-  "dataset_reader": {
-    "cache_directory": "cache/train",
-    "dataset_path": "dataset/database",
-    "keep_if_unparsable": false,
-    "lazy": false,
-    "max_instances": 10,
-    "question_token_indexers": {
-      "tokens": {
-        "model_name": "bert-base-uncased",
-        "type": "pretrained_transformer"
-      }
-    },
-    "tables_file": "dataset/tables.json",
-    "type": "spider_ratsql"
-  },
   "trainer": {
     "checkpointer": {
       "num_serialized_models_to_keep": 2
@@ -81,6 +79,5 @@
       "weight_decay": 0.0005
     },
     "validation_metric": "+sql_match"
-  },
-  "random_seed": 5
+  }
 }

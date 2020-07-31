@@ -138,8 +138,8 @@ class SpiderParser(Model):
                 offsets=None
                 ) -> Dict[str, torch.Tensor]:
         batch_size = len(world)
-        initial_state,loss = self._schema_encoder._get_initial_state(enc, world, schema,
-                             valid_actions, action_sequence, schema_strings,lengths,offsets,relation)
+        initial_state, loss = self._schema_encoder._get_initial_state(enc, world, schema,
+                valid_actions, action_sequence, schema_strings, lengths, offsets, relation)
         if action_sequence is not None:
             # Remove the trailing dimension (from ListField[ListField[IndexField]]).
             action_sequence = action_sequence.squeeze(-1)
@@ -158,6 +158,7 @@ class SpiderParser(Model):
                                                              (action_sequence.unsqueeze(1), action_mask.unsqueeze(1)))
                 query_loss = decode_output['loss']
             except ZeroDivisionError:
+                # print("hi")
                 return {'loss': Parameter(torch.tensor([0]).float()).to(action_sequence.device)}
 
             loss += ((1-self._graph_loss_lambda) * query_loss)
@@ -241,7 +242,9 @@ class SpiderParser(Model):
             action_strings = [action_mapping[(i, action_index)]
                               for action_index in best_action_indices]
             predicted_sql_query = action_sequence_to_sql(action_strings, add_table_names=True)
-            outputs['predicted_sql_query'].append(sqlparse.format(predicted_sql_query, reindent=False))
+            ref_predicted_sql_query =  sqlparse.format(predicted_sql_query, reindent=False)
+            print(ref_predicted_sql_query)
+            outputs['predicted_sql_query'].append(ref_predicted_sql_query)
 
             if target_list is not None:
                 targets = target_list[i].data

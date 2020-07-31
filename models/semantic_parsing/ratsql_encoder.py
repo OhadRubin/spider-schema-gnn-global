@@ -77,13 +77,14 @@ class RatsqlEncoder(SchemaEncoder):
         # self._question_embedder = PretrainedTransformerMismatchedEmbedder("bert-base-uncased")
         # self._tokenizer = PretrainedTransformerMismatchedIndexer("bert-base-uncased")
         # self._question_embedder = PretrainedTransformerEmbedder("bert-base-uncased")
-        # self._tokenizer = PretrainedTransformerIndexer("bert-base-uncased")
+        self._tokenizer = PretrainedTransformerIndexer("bert-base-uncased")._tokenizer
         # self._question_embedder = PretrainedTransformerEmbedder("distilbert-base-uncased")
         num_layers = 4
         num_heads = 8
         hidden_size = 768
         ff_size = 768
         tie_layers = False
+        dropout = 0.1
         n_relations = 51
         self.rat_encoder = transformer.Encoder(
             lambda: transformer.EncoderLayer(
@@ -91,13 +92,13 @@ class RatsqlEncoder(SchemaEncoder):
                 transformer.MultiHeadedAttentionWithRelations(
                     num_heads,
                     hidden_size,
-                    dropout),
+                    0.1),
                 transformer.PositionwiseFeedForward(
                     hidden_size,
                     ff_size,
-                    dropout),
+                    0.1),
                 n_relations,
-                dropout),
+                0.1),
             hidden_size,
             num_layers,
             tie_layers)
@@ -136,11 +137,12 @@ class RatsqlEncoder(SchemaEncoder):
         self._action_embedder = Embedding(num_embeddings=num_actions, embedding_dim=input_action_dim)
         self._output_action_embedder = Embedding(num_embeddings=num_actions, embedding_dim=action_embedding_dim)
         
-        self._encoder_output_dim = self._action_embedding_dim + self._embedding_dim
-        self._to_emb = torch.nn.Linear( self._embedding_dim, self._encoder_output_dim)
+        self._encoder_output_dim = self._action_embedding_dim + self._action_embedding_dim
+        self._to_emb = torch.nn.Linear( self._embedding_dim, self._action_embedding_dim)
+        self._to_emb_big = torch.nn.Linear( self._embedding_dim, self._encoder_output_dim)
         # # self.encoder_output_dim = 
 
-        self._first_action_embedding = torch.nn.Parameter(torch.FloatTensor(self._action_embedding_dim ) )
+        self._first_action_embedding = torch.nn.Parameter(torch.FloatTensor(self._action_embedding_dim))
         self._first_attended_utterance = torch.nn.Parameter(torch.FloatTensor(self._encoder_output_dim))
         self._first_attended_output = torch.nn.Parameter(torch.FloatTensor(self._action_embedding_dim))
         torch.nn.init.normal_(self._first_action_embedding)
@@ -173,67 +175,72 @@ class RatsqlEncoder(SchemaEncoder):
         utterance_schema =utterance
         batch_size = len(worlds)
         device = utterance_schema['tokens']["token_ids"].device
-        # def to_text(token_list):
+        def to_text(token_list):
             # return self._tokenizer.indices_to_tokens({"token_ids":token_list.squeeze().tolist()},self._vocab)
+            return self._tokenizer.decode(token_list.squeeze().tolist(),skip_special_tokens=True)
         # print(self._vocab)
         # print(to_text(utterance_schema['tokens']["token_ids"]))
         # print(utterance_schema)
         # utterance_schema['tokens']['offsets']=offsets 
-        # token_idx,_ = parser_utils.batched_span_select(utterance_schema['tokens']["token_ids"].unsqueeze(-1),offsets)
+        # token_idx,_ = parser_utils.batched_span_select(utterance_schema['tokens']["token_ids"].unsqueeze(-1), offsets)
+        # print([[to_text(y) for y in x] for x in token_idx])
         
         embedded_utterance_schema = self._question_embedder(utterance_schema)
         # print("hi")
         # embedded_utterance_schema = self._question_embedder(**utterance_schema['tokens'])
+        # print(offsets[-2])
         embedded_utterance_schema, \
-                    embedded_utterance_schema_mask = parser_utils.batched_span_select(embedded_utterance_schema, offsets)
+            embedded_utterance_schema_mask = parser_utils.batched_span_select(embedded_utterance_schema, offsets)
+        # print(embedded_utterance_schema_mask[-2].float())
         embedded_utterance_schema = util.masked_mean(embedded_utterance_schema,
-                                                    embedded_utterance_schema_mask.unsqueeze(-1),dim=-2)
+                                                     embedded_utterance_schema_mask.unsqueeze(-1), dim=-2)
         
+        relation_mask = (relation >= 0).float()  #TODO: fixme
+        # print(relation_mask[-2])
+        torch.abs(relation, out=relation)
 
-             
-        
-        relation_mask = (relation>=0).float() #TODO: fixme
-        torch.abs(relation,out=relation)
-        
-
-
-
-        enriched_utterance_schema = self.rat_encoder(embedded_utterance_schema, relation.long(),relation_mask)
+        enriched_utterance_schema = self.rat_encoder(embedded_utterance_schema, relation.long(), relation_mask)
 
         #TODO: validate that this is working as intented
-        utterance_schema, utterance_schema_mask = parser_utils.batched_span_select(enriched_utterance_schema,lengths) 
-        
-        utterance,schema = torch.split(utterance_schema,1,dim=1)
-        utterance_mask,schema_mask = torch.split(utterance_schema_mask,1,dim=1)
-
-        utterance_mask = torch.squeeze(utterance_mask, 1)
-        schema_mask = torch.squeeze(schema_mask, 1)
-        utterance = torch.squeeze(utterance, 1)
-        schema = torch.squeeze(schema, 1)
+        # print(lengths)
+        utterance_schema, utterance_schema_mask = parser_utils.batched_span_select(enriched_utterance_schema, lengths)
+        # print(utterance_schema_mask.size(),utterance_schema.size())
+        # exit(0)
+        utterance, schema = torch.split(utterance_schema, 1, dim=1)
+        utterance_mask, schema_mask = torch.split(utterance_schema_mask, 1, dim=1)
+        # print(utterance_mask[-2])
+        # print(utterance_mask.size())
         # for x in [utterance_mask,schema_mask,utterance,schema]:
         #     print(x.size())
-
         
+        utterance_mask = torch.squeeze(utterance_mask, 1)
+        # utterance_mask
+        # print(utterance_mask.sum(-1))
+        # print(utterance_mask.size())
+        schema_mask = torch.squeeze(schema_mask, 1)
+        # print(schema_mask.sum(-1))
+        utterance = torch.squeeze(utterance, 1)
+        schema = torch.squeeze(schema, 1)
+
+
+        linking_scores = self._att_question_schema(utterance, schema)
+        linked_actions_linking_scores = self._att_schema_schema(schema, schema)
         
         # replace with avg of the question concat with avg of the schema
-        final_encoder_output = self._to_emb(util.masked_mean(utterance,utterance_mask.unsqueeze(-1),dim=1))
+        final_encoder_output = self._to_emb_big(util.masked_mean(utterance, utterance_mask.unsqueeze(-1),dim=1))
 
         # replace with rat_encoder outputs for the question concatenated with the schema weighted by the linking scores
-        encoder_outputs = self._to_emb(utterance)
-        memory_cell = torch.zeros([batch_size, self._encoder_output_dim],device=device)  #OK
+        # encoder_outputs = self._to_emb(utterance)
+        encoder_outputs = self._to_emb_big(utterance)
+        memory_cell = torch.zeros([batch_size, self._encoder_output_dim], device=device)  #OK
 
-        linking_scores  = self._att_question_schema(utterance,schema)
-        linked_actions_linking_scores = self._att_schema_schema(schema,schema)
-        
-        initial_score = torch.zeros([batch_size],device=device) #OK
-        
-        
-        # 
+        initial_score = torch.zeros([batch_size], device=device)  #OK
+        schema = self._to_emb(schema)
         # To make grouping states together in the decoder easier, we convert the batch dimension in
         # all of our tensors into an outer list.  For instance, the encoder outputs have shape
         # `(batch_size, utterance_length, encoder_output_dim)`.  We need to convert this into a list
         # of `batch_size` tensors, each of shape `(utterance_length, encoder_output_dim)`.  Then we
-        # won't have to do any index selects, or anything, we'll just do some `torch.cat()`s. 
+        # won't have to do any index selects, or anything, we'll just do some `torch.cat()`s.
         initial_score_list = [initial_score[i] for i in range(batch_size)]
         encoder_output_list = [encoder_outputs[i] for i in range(batch_size)]
         utterance_mask_list = [utterance_mask[i] for i in range(batch_size)]
@@ -266,8 +273,8 @@ class RatsqlEncoder(SchemaEncoder):
                                           grammar_state=initial_grammar_state,
                                           sql_state=initial_sql_state,
                                           possible_actions=actions,
-                                          action_entity_mapping=[w.get_action_entity_mapping() for w in worlds]) 
-        
+                                          action_entity_mapping=[w.get_action_entity_mapping() for w in worlds])
+       
         loss = torch.tensor([0]).float().to(device)
 
         return initial_state, loss

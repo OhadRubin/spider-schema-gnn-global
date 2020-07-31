@@ -1,12 +1,12 @@
 local dataset_path = "dataset/";
-local cache_path = "cache/";
+local cache_path = "cache/new5";
 local max_instances = null;
-// local max_instances = 10;
+// local max_instances = 510;
 
 {
-  "random_seed": 5,
-  "numpy_seed": 5,
-  "pytorch_seed": 5,
+  // "random_seed": 5,
+  // "numpy_seed": 5,
+  // "pytorch_seed": 5,
   "dataset_reader": {
     "type": "spider_ratsql",
     "tables_file": dataset_path + "tables.json",
@@ -73,7 +73,7 @@ local max_instances = null;
 
 
             },
-      "action_embedding_dim": 768,
+      "action_embedding_dim": 300,
       // "action_embedding_dim": 768,
       // "decoder_use_graph_entities": true,
       // "gnn_timesteps": 3,
@@ -93,7 +93,7 @@ local max_instances = null;
     "dropout": 0.5
   },
   "data_loader": {
-    "batch_size" : 15,
+    "batch_size" : 10,
   },
   "validation_data_loader": {
     "batch_size" : 1,
@@ -105,8 +105,8 @@ local max_instances = null;
     "validation_metric": "+sql_match",
     "optimizer": {
       "type": "adam",
-      // "lr": 0.001,
       "lr": 0.001,
+      // "lr": 0.0001,
       "weight_decay": 5e-4
     },
     // "num_serialized_models_to_keep": 

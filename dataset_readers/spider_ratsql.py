@@ -55,7 +55,7 @@ from allennlp.data.token_indexers import PretrainedTransformerIndexer
 from allennlp.data.tokenizers import PretrainedTransformerTokenizer
 from collections import defaultdict
 from allennlp.data import Tokenizer, Token
-
+from semparse.contexts.spider_context_utils import action_sequence_to_sql
 import pickle
 import jsonpickle
 from time import time
@@ -321,18 +321,17 @@ class SpiderRatsqlDatasetReader(DatasetReader):
             schema=self.schemas[db_id],
             orig=orig,
             orig_schema=self.schemas[db_id].orig)
-        desc = self.preprocess_item(item,"train")
-
+        desc = self.preprocess_item(item, "train")
 
         schema_strings = [normalize_schema_constant(x) for x in desc['columns']+desc['tables']]
-        fields["schema_strings"] = MetadataField(schema_strings)    
+        fields["schema_strings"] = MetadataField(schema_strings)
         q = [x.lower() for x in desc['question']]
-        c = ["_".join(x).lower() for x in  desc['columns']]
-        
-        t = ["_".join(x).lower() for x in  desc['tables']]
-        t = ["<table>"+x for x in  t]
-        enc = q+c+t
-        relation = self.compute_relations(desc,len(enc),len(q),len(c),range(len(c)+1),range(len(t)+1))
+        c = ["_".join(x).lower() for x in desc['columns']]
+    
+        t = ["_".join(x).lower() for x in desc['tables']]
+        t = ["<table>" + x for x in t]
+        enc = q + c + t
+        relation = self.compute_relations(desc, len(enc), len(q), len(c), range(len(c)+1), range(len(t)+1))
 
         rel_dict = defaultdict(dict)
         for i,x in  enumerate(list(range(len(q)))+schema_strings):
@@ -359,17 +358,9 @@ class SpiderRatsqlDatasetReader(DatasetReader):
                 for j,y in  enumerate(new_enc):
                     new_relation[i][j] = rel_dict[x][y]
         except:
-            
-            # for x,y in  zip(sorted(entities),sorted(schema_strings[1:])):
-                # print(x,y)
-            # print()
-            # print()
-            # exit(0)
             print("err")
             return None
-        #     # print(world.db_context.entity_tokens)
-            
-
+        fields['relation'] = ArrayField(new_relation,padding_value=-1,dtype=np.int32)
 
         # ebc
         cls_token = self._tokenizer.tokenize('a')[0]
@@ -382,39 +373,34 @@ class SpiderRatsqlDatasetReader(DatasetReader):
         #     enc_field_list.extend(token_list) 
         # world.db_context.tokenized_utterance
         # enc__fi
-        
+        #TODO: add sep and update the lengths accordingly... i.e change to [1:]
         q= [[x] for x in world.db_context.tokenized_utterance[1:-1]]
+        # q= [[x] for x in world.db_context.tokenized_utterance[1:]]
         # sizes_list.append(len(q))
-        schema_tokens = [x[1:-1] for x in world.db_context.entity_tokens]
+        # schema_tokens = [x[1:-1] for x in world.db_context.entity_tokens]
+        schema_tokens = [[eos_token]+self._tokenizer.tokenize(x)[1:] for x in world.db_context.knowledge_graph.entities[:1]]
+        # schema_tokens
+        schema_tokens.extend([self._tokenizer.tokenize(x)[1:] for x in world.db_context.knowledge_graph.entities[1:]])
+        schema_tokens = [[y for y in x if y.text not in ["_"]] for x in schema_tokens]
+        # print(schema_tokens)
+        # exit(0)
         enc_field_list = []
         # sizes_list = []
         # print(q+schema_tokens)
         for x in [[cls_token]]+q+schema_tokens+[[eos_token]]:
-            # token_list = [y for y in x[1:-1] if y.text not in ['_']]
             sizes_list.append(len(x))
             enc_field_list.extend(x) 
-        # print(q+schema_strings)
-        # print(enc_field_list)
-        # enc_field_list.extend() 
-        # sizes_list.append(len(world.db_context.tokenized_utterance[1:-1]))
 
         if len(enc_field_list)>512:
             return None
-        # print(enc_field_list)
-        # print(enc)
-        # print(enc_field_list)
-        # print(world.db_context.tokenized_utterance)
-        # print(world.db_context.entity_tokens)
-        # exit(0)
+
         def get_offsets(lengths):
             e = np.cumsum(([0]+list(lengths))[:-1])
             return list(zip(e+1,e+np.array(lengths)))
-        fields['relation'] = ArrayField(new_relation,padding_value=-1,dtype=np.int32)
-        # q = world.db_context.tokenized_utterance
         offsets = get_offsets(sizes_list[1:-1])
         # print(offsets)
-        # exit(0)
-        fields['lengths'] = ArrayField(np.array([[0,len(q)-1],[len(q),len(q)+len(schema_tokens)-1]]),dtype=np.int32)
+        # fields['lengths'] = ArrayField(np.array([[0,len(q)-1],[len(q),len(q)+len(schema_tokens)-1]]),dtype=np.int32)
+        fields['lengths'] = ArrayField(np.array([[0,len(q)-1],[len(q),len(q)+len(schema_tokens)]]),dtype=np.int32)
         fields['offsets'] = ArrayField(np.array(offsets),padding_value=0,dtype=np.int32)
         fields["enc"] = TextField(enc_field_list, self._utterance_token_indexers)
 
@@ -434,9 +420,7 @@ class SpiderRatsqlDatasetReader(DatasetReader):
         # print(world.entities_names)
         # assert len(list(world.entities_names.keys())) == (len(schema_strings) -1)
         
-        # new_rel_dict = defaultdict(dict) 
-        # for i,x in  enumerate(q+schema_strings):
-            # for j,y in  enumerate(q+schema_strings):
+
         
 
         # world.entities_names = {j:i for i,j in enumerate(schema_strings)}
@@ -463,12 +447,14 @@ class SpiderRatsqlDatasetReader(DatasetReader):
 
         action_map = {action.rule: i  # type: ignore
                       for i, action in enumerate(valid_actions_field.field_list)}
-
+        
+            
+        # print(action_sequence_to_sql([production_rule for production_rule in action_sequence],add_table_names=True))
         for production_rule in action_sequence:
             index_fields.append(IndexField(action_map[production_rule], valid_actions_field))
         if not action_sequence:
             index_fields = [IndexField(-1, valid_actions_field)]
-
+        # print(' '.join(world.get_query_without_table_hints()))
         action_sequence_field = ListField(index_fields)
         fields["action_sequence"] = action_sequence_field
 
