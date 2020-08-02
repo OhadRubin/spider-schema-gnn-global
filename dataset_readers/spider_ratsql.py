@@ -212,6 +212,7 @@ class SpiderRatsqlDatasetReader(DatasetReader):
 
         def add_relation(name):
             self.relation_ids[name] = len(self.relation_ids)
+        
 
         def add_rel_dist(name, max_dist):
             for i in range(-max_dist, max_dist + 1):
@@ -243,6 +244,8 @@ class SpiderRatsqlDatasetReader(DatasetReader):
                 dest.row_factory = sqlite3.Row
                 source.backup(dest)
             schema.connection = dest
+        self.relation_ids_inv = {v:k for k,v in self.relation_ids.items()}
+        print(self.relation_ids)
         # super().__init__(lazy=lazy,max_instances=max_instances)
 
 
@@ -356,10 +359,12 @@ class SpiderRatsqlDatasetReader(DatasetReader):
         try:
             for i,x in  enumerate(new_enc):
                 for j,y in  enumerate(new_enc):
+                    # print(x,y,rel_dict[x][y],self.relation_ids_inv[rel_dict[x][y]])
                     new_relation[i][j] = rel_dict[x][y]
         except:
             print("err")
             return None
+        # exit(0)
         fields['relation'] = ArrayField(new_relation,padding_value=-1,dtype=np.int32)
 
         # ebc
@@ -399,8 +404,8 @@ class SpiderRatsqlDatasetReader(DatasetReader):
             return list(zip(e+1,e+np.array(lengths)))
         offsets = get_offsets(sizes_list[1:-1])
         # print(offsets)
-        # fields['lengths'] = ArrayField(np.array([[0,len(q)-1],[len(q),len(q)+len(schema_tokens)-1]]),dtype=np.int32)
-        fields['lengths'] = ArrayField(np.array([[0,len(q)-1],[len(q),len(q)+len(schema_tokens)]]),dtype=np.int32)
+        fields['lengths'] = ArrayField(np.array([[0,len(q)-1],[len(q),len(q)+len(schema_tokens)-1]]),dtype=np.int32)
+        # fields['lengths'] = ArrayField(np.array([[0,len(q)-1],[len(q),len(q)+len(schema_tokens)]]),dtype=np.int32)
         fields['offsets'] = ArrayField(np.array(offsets),padding_value=0,dtype=np.int32)
         fields["enc"] = TextField(enc_field_list, self._utterance_token_indexers)
 
@@ -471,7 +476,10 @@ class SpiderRatsqlDatasetReader(DatasetReader):
     @overrides
     def _instances_from_cache_file(self, cache_filename: str):
         with open(cache_filename, "rb") as cache_file:
-            yield from dill.load(cache_file)
+            d = dill.load(cache_file)
+            yield from d
+            if "train" in cache_filename:
+                yield from d
             # for line in cache_file:
                 # yield self.deserialize_instance(line.strip())
 

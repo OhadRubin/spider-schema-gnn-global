@@ -175,6 +175,12 @@ class RatsqlEncoder(SchemaEncoder):
         utterance_schema =utterance
         batch_size = len(worlds)
         device = utterance_schema['tokens']["token_ids"].device
+        # rule_ids_list = [x for x in ]
+        # for x in relation[0]:
+            # print(x)
+        # print(relation[0])
+        # print([actions[0][int(x)] for x in action_sequence[0]])
+        # print()
         def to_text(token_list):
             # return self._tokenizer.indices_to_tokens({"token_ids":token_list.squeeze().tolist()},self._vocab)
             return self._tokenizer.decode(token_list.squeeze().tolist(),skip_special_tokens=True)
@@ -203,7 +209,14 @@ class RatsqlEncoder(SchemaEncoder):
 
         #TODO: validate that this is working as intented
         # print(lengths)
+        # print(enriched_utterance_schema.size())
+        # print(lengths)
         utterance_schema, utterance_schema_mask = parser_utils.batched_span_select(enriched_utterance_schema, lengths)
+        # print(torch.sum(utterance_schema_mask,dim=-1))
+        # print([len(x.db_context.knowledge_graph.entities) for x in worlds])
+        # a = [[x.text for x in y.db_context.tokenized_utterance[1:-1]] for y in worlds]
+        # print(a)
+        # print()
         # print(utterance_schema_mask.size(),utterance_schema.size())
         # exit(0)
         utterance, schema = torch.split(utterance_schema, 1, dim=1)
@@ -223,7 +236,7 @@ class RatsqlEncoder(SchemaEncoder):
         schema = torch.squeeze(schema, 1)
 
 
-        linking_scores = self._att_question_schema(utterance, schema)
+        linking_scores = self._att_question_schema(schema, utterance)
         linked_actions_linking_scores = self._att_schema_schema(schema, schema)
         
         # replace with avg of the question concat with avg of the schema

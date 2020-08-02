@@ -243,7 +243,7 @@ class SpiderParser(Model):
                               for action_index in best_action_indices]
             predicted_sql_query = action_sequence_to_sql(action_strings, add_table_names=True)
             ref_predicted_sql_query =  sqlparse.format(predicted_sql_query, reindent=False)
-            print(ref_predicted_sql_query)
+            # print(ref_predicted_sql_query)
             outputs['predicted_sql_query'].append(ref_predicted_sql_query)
 
             if target_list is not None:
