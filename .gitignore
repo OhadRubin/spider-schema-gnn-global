@@ -18,3 +18,4 @@ gnn.tar.gz
 gnn_global_models.tar.gz
 *.pyc
 **/.ipynb_checkpoints
+backup/
