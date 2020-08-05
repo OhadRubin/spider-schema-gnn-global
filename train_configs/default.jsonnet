@@ -1,5 +1,5 @@
 local dataset_path = "dataset/";
-local cache_path = "cache/new3";
+local cache_path = "cache/value_link/temp9";
 local max_instances = null;
 local gradient_acum = 4;
 local batch_size = 6;
@@ -124,7 +124,7 @@ local num_epochs = 125;
                       "parameter_groups": [
                           [["question_embedder"], {"lr": 3e-6}]
                           ],
-                      "weight_decay": 5e-4
+                      // "weight_decay": 5e-4
                     },
   "learning_rate_scheduler":{
 

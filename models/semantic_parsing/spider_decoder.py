@@ -161,7 +161,8 @@ class SpiderParser(Model):
                 # print("hi")
                 return {'loss': Parameter(torch.tensor([0]).float()).to(action_sequence.device)}
 
-            loss += ((1-self._graph_loss_lambda) * query_loss)
+            # loss += ((1-self._graph_loss_lambda) * query_loss)
+            loss = query_loss
 
             return {'loss': loss}
         else:

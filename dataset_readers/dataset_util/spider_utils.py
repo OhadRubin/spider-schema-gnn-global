@@ -83,7 +83,7 @@ def read_dataset_values(db_id: str, dataset_path: str, tables: List[str]):
     cursor = conn.cursor()
 
     values = {}
-    c = "10" #TODO: fixme
+    c = "5000" #TODO: fixme
     for table in tables:
         try:
             cursor.execute(f"SELECT * FROM {table.name} LIMIT {c}") 

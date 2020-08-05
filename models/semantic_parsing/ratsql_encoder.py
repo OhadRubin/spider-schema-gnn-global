@@ -79,7 +79,7 @@ class RatsqlEncoder(SchemaEncoder):
         # self._question_embedder = PretrainedTransformerEmbedder("bert-base-uncased")
         self._tokenizer = PretrainedTransformerIndexer("bert-base-uncased")._tokenizer
         # self._question_embedder = PretrainedTransformerEmbedder("distilbert-base-uncased")
-        num_layers = 4
+        num_layers = 8
         num_heads = 8
         hidden_size = 768
         ff_size = 768

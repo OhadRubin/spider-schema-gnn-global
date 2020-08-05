@@ -1,27 +1,36 @@
 {
-  "dataset_reader": {
-    "cache_directory": "cache/new3train",
-    "dataset_path": "dataset/database",
-    "keep_if_unparsable": false,
-    "lazy": false,
-    "max_instances": null,
-    "question_token_indexers": {
-      "tokens": {
-        "model_name": "bert-base-uncased",
-        "type": "pretrained_transformer"
-      }
-    },
-    "tables_file": "dataset/tables.json",
-    "type": "spider_ratsql"
-  },
   "data_loader": {
     "batch_size": 6
   },
-  "validation_data_loader": {
-    "batch_size": 1
-  },
-  "validation_data_path": "dataset/dev.json",
   "train_data_path": "dataset/train_spider.json",
+  "trainer": {
+    "checkpointer": {
+      "num_serialized_models_to_keep": 2
+    },
+    "cuda_device": 0,
+    "learning_rate_scheduler": {
+      "power": 2,
+      "type": "polynomial_decay",
+      "warmup_steps": 4500
+    },
+    "num_epochs": 125,
+    "num_gradient_accumulation_steps": 4,
+    "optimizer": {
+      "lr": 0.001488,
+      "parameter_groups": [
+        [
+          [
+            "question_embedder"
+          ],
+          {
+            "lr": 3e-06
+          }
+        ]
+      ],
+      "type": "adam"
+    },
+    "validation_metric": "+sql_match"
+  },
   "model": {
     "dataset_path": "dataset/",
     "decoder_beam_search": {
@@ -52,8 +61,24 @@
     "training_beam_size": 1,
     "type": "spider"
   },
+  "validation_data_path": "dataset/dev.json",
+  "dataset_reader": {
+    "cache_directory": "cache/value_link/temp9train",
+    "dataset_path": "dataset/database",
+    "keep_if_unparsable": false,
+    "lazy": false,
+    "max_instances": null,
+    "question_token_indexers": {
+      "tokens": {
+        "model_name": "bert-base-uncased",
+        "type": "pretrained_transformer"
+      }
+    },
+    "tables_file": "dataset/tables.json",
+    "type": "spider_ratsql"
+  },
   "validation_dataset_reader": {
-    "cache_directory": "cache/new3val",
+    "cache_directory": "cache/value_link/temp9val",
     "dataset_path": "dataset/database",
     "keep_if_unparsable": true,
     "lazy": false,
@@ -67,33 +92,7 @@
     "tables_file": "dataset/tables.json",
     "type": "spider_ratsql"
   },
-  "trainer": {
-    "checkpointer": {
-      "num_serialized_models_to_keep": 2
-    },
-    "cuda_device": 0,
-    "learning_rate_scheduler": {
-      "power": 2,
-      "type": "polynomial_decay",
-      "warmup_steps": 4500
-    },
-    "num_epochs": 125,
-    "num_gradient_accumulation_steps": 4,
-    "optimizer": {
-      "lr": 0.000744,
-      "parameter_groups": [
-        [
-          [
-            "question_embedder"
-          ],
-          {
-            "lr": 3e-06
-          }
-        ]
-      ],
-      "type": "adam",
-      "weight_decay": 0.0005
-    },
-    "validation_metric": "+sql_match"
+  "validation_data_loader": {
+    "batch_size": 1
   }
 }
