@@ -1,67 +1,4 @@
 {
-  "data_loader": {
-    "batch_size": 6
-  },
-  "train_data_path": "dataset/train_spider.json",
-  "trainer": {
-    "checkpointer": {
-      "num_serialized_models_to_keep": 2
-    },
-    "cuda_device": 0,
-    "learning_rate_scheduler": {
-      "power": 2,
-      "type": "polynomial_decay",
-      "warmup_steps": 4500
-    },
-    "num_epochs": 125,
-    "num_gradient_accumulation_steps": 4,
-    "optimizer": {
-      "lr": 0.001488,
-      "parameter_groups": [
-        [
-          [
-            "question_embedder"
-          ],
-          {
-            "lr": 3e-06
-          }
-        ]
-      ],
-      "type": "adam"
-    },
-    "validation_metric": "+sql_match"
-  },
-  "model": {
-    "dataset_path": "dataset/",
-    "decoder_beam_search": {
-      "beam_size": 10
-    },
-    "dropout": 0.5,
-    "input_attention": {
-      "type": "dot_product"
-    },
-    "max_decoding_steps": 100,
-    "past_attention": {
-      "type": "dot_product"
-    },
-    "schema_encoder": {
-      "action_embedding_dim": 300,
-      "dropout": 0.5,
-      "parse_sql_on_decoding": false,
-      "question_embedder": {
-        "token_embedders": {
-          "tokens": {
-            "model_name": "bert-base-uncased",
-            "type": "pretrained_transformer"
-          }
-        }
-      },
-      "type": "ratsql"
-    },
-    "training_beam_size": 1,
-    "type": "spider"
-  },
-  "validation_data_path": "dataset/dev.json",
   "dataset_reader": {
     "cache_directory": "cache/value_link/temp9train",
     "dataset_path": "dataset/database",
@@ -92,7 +29,70 @@
     "tables_file": "dataset/tables.json",
     "type": "spider_ratsql"
   },
+  "train_data_path": "dataset/train_spider.json",
+  "validation_data_path": "dataset/dev.json",
+  "model": {
+    "dataset_path": "dataset/",
+    "decoder_beam_search": {
+      "beam_size": 10
+    },
+    "dropout": 0.5,
+    "input_attention": {
+      "type": "dot_product"
+    },
+    "max_decoding_steps": 100,
+    "past_attention": {
+      "type": "dot_product"
+    },
+    "schema_encoder": {
+      "action_embedding_dim": 300,
+      "dropout": 0.5,
+      "parse_sql_on_decoding": false,
+      "question_embedder": {
+        "token_embedders": {
+          "tokens": {
+            "model_name": "bert-base-uncased",
+            "type": "pretrained_transformer"
+          }
+        }
+      },
+      "type": "ratsql"
+    },
+    "training_beam_size": 1,
+    "type": "spider"
+  },
   "validation_data_loader": {
     "batch_size": 1
+  },
+  "data_loader": {
+    "batch_size": 6
+  },
+  "trainer": {
+    "checkpointer": {
+      "num_serialized_models_to_keep": 2
+    },
+    "cuda_device": 0,
+    "learning_rate_scheduler": {
+      "power": 2,
+      "type": "polynomial_decay",
+      "warmup_steps": 4500
+    },
+    "num_epochs": 125,
+    "num_gradient_accumulation_steps": 4,
+    "optimizer": {
+      "lr": 0.000744,
+      "parameter_groups": [
+        [
+          [
+            "question_embedder"
+          ],
+          {
+            "lr": 3e-06
+          }
+        ]
+      ],
+      "type": "adam"
+    },
+    "validation_metric": "+sql_match"
   }
 }

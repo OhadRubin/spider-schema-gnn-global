@@ -14,6 +14,7 @@ from allennlp.data.token_indexers.token_indexer import TokenIndexer
 from allennlp.data.tokenizers import Token, Tokenizer, SpacyTokenizer
 from allennlp.data.vocabulary import Vocabulary
 from dataset_readers.fields.knowledge_graph import KnowledgeGraph
+
 # from allennlp_semparse.common.knowledge_graph import KnowledgeGraph
 
 
@@ -98,7 +99,8 @@ class KnowledgeGraphField(Field[Dict[str, torch.Tensor]]):
         self._token_indexers = token_indexers
         if not entity_tokens:
             entity_texts = [
-                knowledge_graph.entity_text[entity].lower() for entity in knowledge_graph.entities
+                knowledge_graph.entity_text[entity].lower()
+                for entity in knowledge_graph.entities
             ]
             # TODO(mattg): Because we do tagging on each of these entities in addition to just
             # tokenizations, this is quite slow, and about half of our data processing time just
@@ -113,7 +115,9 @@ class KnowledgeGraphField(Field[Dict[str, torch.Tensor]]):
         max_entity_tokens = None
         if max_table_tokens:
             num_entities = len(self.entity_texts)
-            num_entity_tokens = max(len(entity_text) for entity_text in self.entity_texts)
+            num_entity_tokens = max(
+                len(entity_text) for entity_text in self.entity_texts
+            )
             # This truncates the number of entity tokens used, enabling larger tables (either in
             # the number of entities in the table, or the number of tokens per entity) to fit in
             # memory, particularly when using ELMo.
@@ -203,7 +207,9 @@ class KnowledgeGraphField(Field[Dict[str, torch.Tensor]]):
         text_tensors = self._entity_text_field.as_tensor(padding_lengths)
 
         padded_linking_features = util.pad_sequence_to_length(
-            self.linking_features, padding_lengths["num_entities"], default_value=lambda: []
+            self.linking_features,
+            padding_lengths["num_entities"],
+            default_value=lambda: [],
         )
         padded_linking_arrays = []
 
@@ -222,14 +228,20 @@ class KnowledgeGraphField(Field[Dict[str, torch.Tensor]]):
 
     def _compute_linking_features(self) -> List[List[List[float]]]:
         linking_features = []
-        for entity, entity_text in zip(self.knowledge_graph.entities, self.entity_texts):
+        for entity, entity_text in zip(
+            self.knowledge_graph.entities, self.entity_texts
+        ):
             entity_features = []
             for token_index, token in enumerate(self.utterance_tokens):
                 token_features = []
                 for feature_extractor in self._feature_extractors:
                     token_features.append(
                         feature_extractor(
-                            entity, entity_text, token, token_index, self.utterance_tokens
+                            entity,
+                            entity_text,
+                            token,
+                            token_index,
+                            self.utterance_tokens,
                         )
                     )
                 entity_features.append(token_features)
@@ -242,7 +254,9 @@ class KnowledgeGraphField(Field[Dict[str, torch.Tensor]]):
         return KnowledgeGraphField(KnowledgeGraph(set(), {}), [], self._token_indexers)
 
     @overrides
-    def batch_tensors(self, tensor_list: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
+    def batch_tensors(
+        self, tensor_list: List[Dict[str, torch.Tensor]]
+    ) -> Dict[str, torch.Tensor]:
         # print(tensor_list)
         # print()
         text_tensors = [tensor["text"] for tensor in tensor_list]
@@ -295,7 +309,9 @@ class KnowledgeGraphField(Field[Dict[str, torch.Tensor]]):
             # others in both WikiTables languages do (e.g.: fb:row.row.column_name,
             # date_column:year, string:usl_a_league etc.).
             return 0.0
-        return self._contains_exact_token_match(entity, entity_text, token, token_index, tokens)
+        return self._contains_exact_token_match(
+            entity, entity_text, token, token_index, tokens
+        )
 
     def _exact_token_match(
         self,
@@ -307,7 +323,9 @@ class KnowledgeGraphField(Field[Dict[str, torch.Tensor]]):
     ) -> float:
         if len(entity_text) != 1:
             return 0.0
-        return self._contains_exact_token_match(entity, entity_text, token, token_index, tokens)
+        return self._contains_exact_token_match(
+            entity, entity_text, token, token_index, tokens
+        )
 
     def _contains_exact_token_match(
         self,
@@ -331,7 +349,9 @@ class KnowledgeGraphField(Field[Dict[str, torch.Tensor]]):
     ) -> float:
         if len(entity_text) != 1:
             return 0.0
-        return self._contains_lemma_match(entity, entity_text, token, token_index, tokens)
+        return self._contains_lemma_match(
+            entity, entity_text, token, token_index, tokens
+        )
 
     def _contains_lemma_match(
         self,
@@ -355,7 +375,9 @@ class KnowledgeGraphField(Field[Dict[str, torch.Tensor]]):
         token_index: int,
         tokens: List[Token],
     ) -> float:
-        edit_distance = float(editdistance.eval(" ".join(e.text for e in entity_text), token.text))
+        edit_distance = float(
+            editdistance.eval(" ".join(e.text for e in entity_text), token.text)
+        )
         return 1.0 - edit_distance / len(token.text)
 
     def _related_column(
@@ -431,7 +453,9 @@ class KnowledgeGraphField(Field[Dict[str, torch.Tensor]]):
         while token_index < len(tokens) and tokens[token_index].lemma_ in entity_lemmas:
             seen_entity_lemmas.add(tokens[token_index].lemma_)
             token_index += 1
-        while token_index_left >= 0 and tokens[token_index_left].lemma_ in entity_lemmas:
+        while (
+            token_index_left >= 0 and tokens[token_index_left].lemma_ in entity_lemmas
+        ):
             seen_entity_lemmas.add(tokens[token_index_left].lemma_)
             token_index_left -= 1
         return len(seen_entity_lemmas) / len(entity_lemmas)

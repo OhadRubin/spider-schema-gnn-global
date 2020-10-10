@@ -22,6 +22,7 @@ def clamp(value, abs_max):
     value = min(abs_max, value)
     return value
 
+
 # import cupy as cp
 # square_kernel = cp.RawKernel(r'''
 # extern "C" __global__ void my_square(long long* x) {
@@ -49,7 +50,7 @@ def get_attn_mask(seq_lengths):
     #  [[1, 0, 0],
     #   [0, 0, 0],
     #   [0, 0, 0]],
-    #  [[1, 1, 0], 
+    #  [[1, 1, 0],
     #   [1, 1, 0],
     #   [0, 0, 0]]]
     # int(max(...)) so that it has type 'int instead of numpy.int64
@@ -58,6 +59,8 @@ def get_attn_mask(seq_lengths):
     for batch_idx, seq_length in enumerate(seq_lengths):
         attn_mask[batch_idx, :seq_length, :seq_length] = 1
     return attn_mask
+
+
 # Adapted from
 # https://github.com/tensorflow/tensor2tensor/blob/0b156ac533ab53f65f44966381f6e147c7371eee/tensor2tensor/layers/common_attention.py
 def relative_attention_logits(query, key, relation):
@@ -118,6 +121,7 @@ def relative_attention_logits(query, key, relation):
     # and squeeze
     # [batch, heads, num queries, num kvs]
 
+
 def relative_attention_values(weight, value, relation):
     # In this version, relation vectors are shared across heads.
     # weight: [batch, heads, num queries, num kvs].
@@ -149,21 +153,20 @@ def clones(module_fn, N):
 def attention(query, key, value, mask=None, dropout=None):
     "Compute 'Scaled Dot Product Attention'"
     d_k = query.size(-1)
-    scores = torch.matmul(query, key.transpose(-2, -1)) \
-             / math.sqrt(d_k)
+    scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
     if mask is not None:
         scores = scores.masked_fill(mask == 0, -1e9)
-    p_attn = F.softmax(scores, dim = -1)
+    p_attn = F.softmax(scores, dim=-1)
     if dropout is not None:
         p_attn = dropout(p_attn)
     # return torch.matmul(p_attn, value), scores.squeeze(1).squeeze(1)
     return torch.matmul(p_attn, value), p_attn
 
+
 def sparse_attention(query, key, value, alpha, mask=None, dropout=None):
     "Compute 'Scaled Dot Product Attention'"
     d_k = query.size(-1)
-    scores = torch.matmul(query, key.transpose(-2, -1)) \
-             / math.sqrt(d_k)
+    scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
     if mask is not None:
         scores = scores.masked_fill(mask == 0, -1e9)
     if alpha == 2:
@@ -176,6 +179,7 @@ def sparse_attention(query, key, value, alpha, mask=None, dropout=None):
         p_attn = dropout(p_attn)
     # return torch.matmul(p_attn, value), scores.squeeze(1).squeeze(1)
     return torch.matmul(p_attn, value), p_attn
+
 
 # Adapted from The Annotated Transformer
 class MultiHeadedAttentionWithRelations(nn.Module):
@@ -204,59 +208,62 @@ class MultiHeadedAttentionWithRelations(nn.Module):
         nbatches = query.size(0)
 
         # 1) Do all the linear projections in batch from d_model => h x d_k
-        query, key, value = \
-            [l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
-             for l, x in zip(self.linears, (query, key, value))]
+        query, key, value = [
+            l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
+            for l, x in zip(self.linears, (query, key, value))
+        ]
 
         # 2) Apply attention on all the projected vectors in batch.
         # x shape: [batch, heads, num queries, depth]
         x, self.attn = attention_with_relations(
-            query,
-            key,
-            value,
-            relation_k,
-            relation_v,
-            mask=mask,
-            dropout=self.dropout)
+            query, key, value, relation_k, relation_v, mask=mask, dropout=self.dropout
+        )
 
         # 3) "Concat" using a view and apply a final linear.
-        x = x.transpose(1, 2).contiguous() \
-             .view(nbatches, -1, self.h * self.d_k)
+        x = x.transpose(1, 2).contiguous().view(nbatches, -1, self.h * self.d_k)
         return self.linears[-1](x)
-        
+
+
 # Adapted from The Annotated Transformer
-def attention_with_relations(query, key, value, relation_k, relation_v, mask=None, dropout=None):
+def attention_with_relations(
+    query, key, value, relation_k, relation_v, mask=None, dropout=None
+):
     "Compute 'Scaled Dot Product Attention'"
     d_k = query.size(-1)
     scores = relative_attention_logits(query, key, relation_k)
     if mask is not None:
         scores = scores.masked_fill(mask == 0, -1e9)
-    p_attn_orig = F.softmax(scores, dim = -1)
+    p_attn_orig = F.softmax(scores, dim=-1)
     if dropout is not None:
         p_attn = dropout(p_attn_orig)
     return relative_attention_values(p_attn, value, relation_v), p_attn_orig
 
-class RelationalTransformerUpdate(torch.nn.Module):
 
-    def __init__(self, device, num_layers, num_heads, hidden_size,
-                 ff_size=None,
-                 dropout=0.1,
-                 merge_types=False,
-                 tie_layers=False,
-                 qq_max_dist=2,
-                 cc_foreign_key=True,
-                 cc_table_match=True,
-                 cc_max_dist=2,
-                 ct_foreign_key=True,
-                 ct_table_match=True,
-                 # tq_token_match=True,
-                 tc_table_match=True,
-                 tc_foreign_key=True,
-                 tt_max_dist=2,
-                 tt_foreign_key=True,
-                 sc_link=False,
-                 cv_link=False,
-                 ):
+class RelationalTransformerUpdate(torch.nn.Module):
+    def __init__(
+        self,
+        device,
+        num_layers,
+        num_heads,
+        hidden_size,
+        ff_size=None,
+        dropout=0.1,
+        merge_types=False,
+        tie_layers=False,
+        qq_max_dist=2,
+        cc_foreign_key=True,
+        cc_table_match=True,
+        cc_max_dist=2,
+        ct_foreign_key=True,
+        ct_table_match=True,
+        # tq_token_match=True,
+        tc_table_match=True,
+        tc_foreign_key=True,
+        tt_max_dist=2,
+        tt_foreign_key=True,
+        sc_link=False,
+        cv_link=False,
+    ):
         super().__init__()
         self._device = device
         self.num_heads = num_heads
@@ -285,66 +292,66 @@ class RelationalTransformerUpdate(torch.nn.Module):
             for i in range(-max_dist, max_dist + 1):
                 add_relation((name, i))
 
-        add_rel_dist('qq_dist', qq_max_dist)
+        add_rel_dist("qq_dist", qq_max_dist)
 
-        add_relation('qc_default')
+        add_relation("qc_default")
         # if qc_token_match:
         #    add_relation('qc_token_match')
 
-        add_relation('qt_default')
+        add_relation("qt_default")
         # if qt_token_match:
         #    add_relation('qt_token_match')
 
-        add_relation('cq_default')
+        add_relation("cq_default")
         # if cq_token_match:
         #    add_relation('cq_token_match')
 
-        add_relation('cc_default')
+        add_relation("cc_default")
         if cc_foreign_key:
-            add_relation('cc_foreign_key_forward')
-            add_relation('cc_foreign_key_backward')
+            add_relation("cc_foreign_key_forward")
+            add_relation("cc_foreign_key_backward")
         if cc_table_match:
-            add_relation('cc_table_match')
-        add_rel_dist('cc_dist', cc_max_dist)
+            add_relation("cc_table_match")
+        add_rel_dist("cc_dist", cc_max_dist)
 
-        add_relation('ct_default')
+        add_relation("ct_default")
         if ct_foreign_key:
-            add_relation('ct_foreign_key')
+            add_relation("ct_foreign_key")
         if ct_table_match:
-            add_relation('ct_primary_key')
-            add_relation('ct_table_match')
-            add_relation('ct_any_table')
+            add_relation("ct_primary_key")
+            add_relation("ct_table_match")
+            add_relation("ct_any_table")
 
-        add_relation('tq_default')
+        add_relation("tq_default")
         # if cq_token_match:
         #    add_relation('tq_token_match')
 
-        add_relation('tc_default')
+        add_relation("tc_default")
         if tc_table_match:
-            add_relation('tc_primary_key')
-            add_relation('tc_table_match')
-            add_relation('tc_any_table')
+            add_relation("tc_primary_key")
+            add_relation("tc_table_match")
+            add_relation("tc_any_table")
         if tc_foreign_key:
-            add_relation('tc_foreign_key')
+            add_relation("tc_foreign_key")
 
-        add_relation('tt_default')
+        add_relation("tt_default")
         if tt_foreign_key:
-            add_relation('tt_foreign_key_forward')
-            add_relation('tt_foreign_key_backward')
-            add_relation('tt_foreign_key_both')
-        add_rel_dist('tt_dist', tt_max_dist)
+            add_relation("tt_foreign_key_forward")
+            add_relation("tt_foreign_key_backward")
+            add_relation("tt_foreign_key_both")
+        add_rel_dist("tt_dist", tt_max_dist)
 
         # schema linking relations
         # forward_backward
         if sc_link:
-            add_relation('qcCEM')
-            add_relation('cqCEM')
-            add_relation('qtTEM')
-            add_relation('tqTEM')
-            add_relation('qcCPM')
-            add_relation('cqCPM')
-            add_relation('qtTPM')
-            add_relation('tqTPM')
+            add_relation("qcCEM")
+            add_relation("cqCEM")
+            add_relation("qtTEM")
+            add_relation("tqTEM")
+            add_relation("qcCPM")
+            add_relation("cqCPM")
+            add_relation("qtTPM")
+            add_relation("tqTPM")
 
         if cv_link:
             add_relation("qcNUMBER")
@@ -366,36 +373,36 @@ class RelationalTransformerUpdate(torch.nn.Module):
             assert cc_max_dist == qq_max_dist
             assert tt_max_dist == qq_max_dist
 
-            add_relation('xx_default')
-            self.relation_ids['qc_default'] = self.relation_ids['xx_default']
-            self.relation_ids['qt_default'] = self.relation_ids['xx_default']
-            self.relation_ids['cq_default'] = self.relation_ids['xx_default']
-            self.relation_ids['cc_default'] = self.relation_ids['xx_default']
-            self.relation_ids['ct_default'] = self.relation_ids['xx_default']
-            self.relation_ids['tq_default'] = self.relation_ids['xx_default']
-            self.relation_ids['tc_default'] = self.relation_ids['xx_default']
-            self.relation_ids['tt_default'] = self.relation_ids['xx_default']
+            add_relation("xx_default")
+            self.relation_ids["qc_default"] = self.relation_ids["xx_default"]
+            self.relation_ids["qt_default"] = self.relation_ids["xx_default"]
+            self.relation_ids["cq_default"] = self.relation_ids["xx_default"]
+            self.relation_ids["cc_default"] = self.relation_ids["xx_default"]
+            self.relation_ids["ct_default"] = self.relation_ids["xx_default"]
+            self.relation_ids["tq_default"] = self.relation_ids["xx_default"]
+            self.relation_ids["tc_default"] = self.relation_ids["xx_default"]
+            self.relation_ids["tt_default"] = self.relation_ids["xx_default"]
 
             if sc_link:
-                self.relation_ids['qcCEM'] = self.relation_ids['xx_default']
-                self.relation_ids['qcCPM'] = self.relation_ids['xx_default']
-                self.relation_ids['qtTEM'] = self.relation_ids['xx_default']
-                self.relation_ids['qtTPM'] = self.relation_ids['xx_default']
-                self.relation_ids['cqCEM'] = self.relation_ids['xx_default']
-                self.relation_ids['cqCPM'] = self.relation_ids['xx_default']
-                self.relation_ids['tqTEM'] = self.relation_ids['xx_default']
-                self.relation_ids['tqTPM'] = self.relation_ids['xx_default']
+                self.relation_ids["qcCEM"] = self.relation_ids["xx_default"]
+                self.relation_ids["qcCPM"] = self.relation_ids["xx_default"]
+                self.relation_ids["qtTEM"] = self.relation_ids["xx_default"]
+                self.relation_ids["qtTPM"] = self.relation_ids["xx_default"]
+                self.relation_ids["cqCEM"] = self.relation_ids["xx_default"]
+                self.relation_ids["cqCPM"] = self.relation_ids["xx_default"]
+                self.relation_ids["tqTEM"] = self.relation_ids["xx_default"]
+                self.relation_ids["tqTPM"] = self.relation_ids["xx_default"]
             if cv_link:
-                self.relation_ids["qcNUMBER"] = self.relation_ids['xx_default']
-                self.relation_ids["cqNUMBER"] = self.relation_ids['xx_default']
-                self.relation_ids["qcTIME"] = self.relation_ids['xx_default']
-                self.relation_ids["cqTIME"] = self.relation_ids['xx_default']
-                self.relation_ids["qcCELLMATCH"] = self.relation_ids['xx_default']
-                self.relation_ids["cqCELLMATCH"] = self.relation_ids['xx_default']
+                self.relation_ids["qcNUMBER"] = self.relation_ids["xx_default"]
+                self.relation_ids["cqNUMBER"] = self.relation_ids["xx_default"]
+                self.relation_ids["qcTIME"] = self.relation_ids["xx_default"]
+                self.relation_ids["cqTIME"] = self.relation_ids["xx_default"]
+                self.relation_ids["qcCELLMATCH"] = self.relation_ids["xx_default"]
+                self.relation_ids["cqCELLMATCH"] = self.relation_ids["xx_default"]
 
             for i in range(-qq_max_dist, qq_max_dist + 1):
-                self.relation_ids['cc_dist', i] = self.relation_ids['qq_dist', i]
-                self.relation_ids['tt_dist', i] = self.relation_ids['tt_dist', i]
+                self.relation_ids["cc_dist", i] = self.relation_ids["qq_dist", i]
+                self.relation_ids["tt_dist", i] = self.relation_ids["tt_dist", i]
 
         # if ff_size is None:
         #     ff_size = hidden_size * 4
@@ -445,7 +452,8 @@ class RelationalTransformerUpdate(torch.nn.Module):
             q_enc_length=q_enc.shape[0],
             c_enc_length=c_enc.shape[0],
             c_boundaries=c_boundaries,
-            t_boundaries=t_boundaries)
+            t_boundaries=t_boundaries,
+        )
 
         # relations_t = torch.LongTensor(relations).to(self._device)
         # enc_new = self.encoder(enc, relations_t, mask=None)
@@ -514,35 +522,38 @@ class RelationalTransformerUpdate(torch.nn.Module):
         #     gather_from_indices=gather_from_enc_new)
         # return q_enc_new, c_enc_new, t_enc_new
 
-    def compute_relations(self, desc, enc_length, q_enc_length, c_enc_length, c_boundaries, t_boundaries):
-        sc_link = desc.get('sc_link', {'q_col_match': {}, 'q_tab_match': {}})
-        cv_link = desc.get('cv_link', {'num_date_match': {}, 'cell_match': {}})
+    def compute_relations(
+        self, desc, enc_length, q_enc_length, c_enc_length, c_boundaries, t_boundaries
+    ):
+        sc_link = desc.get("sc_link", {"q_col_match": {}, "q_tab_match": {}})
+        cv_link = desc.get("cv_link", {"num_date_match": {}, "cell_match": {}})
 
         # Catalogue which things are where
         loc_types = {}
         for i in range(q_enc_length):
-            loc_types[i] = ('question',)
+            loc_types[i] = ("question",)
 
         c_base = q_enc_length
         for c_id, (c_start, c_end) in enumerate(zip(c_boundaries, c_boundaries[1:])):
             for i in range(c_start + c_base, c_end + c_base):
-                loc_types[i] = ('column', c_id)
+                loc_types[i] = ("column", c_id)
         t_base = q_enc_length + c_enc_length
         for t_id, (t_start, t_end) in enumerate(zip(t_boundaries, t_boundaries[1:])):
             for i in range(t_start + t_base, t_end + t_base):
-                loc_types[i] = ('table', t_id)
+                loc_types[i] = ("table", t_id)
 
         relations = np.empty((enc_length, enc_length), dtype=np.int64)
 
         for i, j in itertools.product(range(enc_length), repeat=2):
+
             def set_relation(name):
                 relations[i, j] = self.relation_ids[name]
 
             i_type, j_type = loc_types[i], loc_types[j]
-            if i_type[0] == 'question':
-                if j_type[0] == 'question':
-                    set_relation(('qq_dist', clamp(j - i, self.qq_max_dist)))
-                elif j_type[0] == 'column':
+            if i_type[0] == "question":
+                if j_type[0] == "question":
+                    set_relation(("qq_dist", clamp(j - i, self.qq_max_dist)))
+                elif j_type[0] == "column":
                     # set_relation('qc_default')
                     j_real = j - c_base
                     if f"{i},{j_real}" in sc_link["q_col_match"]:
@@ -552,17 +563,17 @@ class RelationalTransformerUpdate(torch.nn.Module):
                     elif f"{i},{j_real}" in cv_link["num_date_match"]:
                         set_relation("qc" + cv_link["num_date_match"][f"{i},{j_real}"])
                     else:
-                        set_relation('qc_default')
-                elif j_type[0] == 'table':
+                        set_relation("qc_default")
+                elif j_type[0] == "table":
                     # set_relation('qt_default')
                     j_real = j - t_base
                     if f"{i},{j_real}" in sc_link["q_tab_match"]:
                         set_relation("qt" + sc_link["q_tab_match"][f"{i},{j_real}"])
                     else:
-                        set_relation('qt_default')
+                        set_relation("qt_default")
 
-            elif i_type[0] == 'column':
-                if j_type[0] == 'question':
+            elif i_type[0] == "column":
+                if j_type[0] == "question":
                     # set_relation('cq_default')
                     i_real = i - c_base
                     if f"{j},{i_real}" in sc_link["q_col_match"]:
@@ -572,82 +583,89 @@ class RelationalTransformerUpdate(torch.nn.Module):
                     elif f"{j},{i_real}" in cv_link["num_date_match"]:
                         set_relation("cq" + cv_link["num_date_match"][f"{j},{i_real}"])
                     else:
-                        set_relation('cq_default')
-                elif j_type[0] == 'column':
+                        set_relation("cq_default")
+                elif j_type[0] == "column":
                     col1, col2 = i_type[1], j_type[1]
                     if col1 == col2:
-                        set_relation(('cc_dist', clamp(j - i, self.cc_max_dist)))
+                        set_relation(("cc_dist", clamp(j - i, self.cc_max_dist)))
                     else:
-                        set_relation('cc_default')
+                        set_relation("cc_default")
                         if self.cc_foreign_key:
-                            if desc['foreign_keys'].get(str(col1)) == col2:
-                                set_relation('cc_foreign_key_forward')
-                            if desc['foreign_keys'].get(str(col2)) == col1:
-                                set_relation('cc_foreign_key_backward')
-                        if (self.cc_table_match and
-                                desc['column_to_table'][str(col1)] == desc['column_to_table'][str(col2)]):
-                            set_relation('cc_table_match')
+                            if desc["foreign_keys"].get(str(col1)) == col2:
+                                set_relation("cc_foreign_key_forward")
+                            if desc["foreign_keys"].get(str(col2)) == col1:
+                                set_relation("cc_foreign_key_backward")
+                        if (
+                            self.cc_table_match
+                            and desc["column_to_table"][str(col1)]
+                            == desc["column_to_table"][str(col2)]
+                        ):
+                            set_relation("cc_table_match")
 
-                elif j_type[0] == 'table':
+                elif j_type[0] == "table":
                     col, table = i_type[1], j_type[1]
-                    set_relation('ct_default')
+                    set_relation("ct_default")
                     if self.ct_foreign_key and self.match_foreign_key(desc, col, table):
-                        set_relation('ct_foreign_key')
+                        set_relation("ct_foreign_key")
                     if self.ct_table_match:
-                        col_table = desc['column_to_table'][str(col)]
+                        col_table = desc["column_to_table"][str(col)]
                         if col_table == table:
-                            if col in desc['primary_keys']:
-                                set_relation('ct_primary_key')
+                            if col in desc["primary_keys"]:
+                                set_relation("ct_primary_key")
                             else:
-                                set_relation('ct_table_match')
+                                set_relation("ct_table_match")
                         elif col_table is None:
-                            set_relation('ct_any_table')
+                            set_relation("ct_any_table")
 
-            elif i_type[0] == 'table':
-                if j_type[0] == 'question':
+            elif i_type[0] == "table":
+                if j_type[0] == "question":
                     # set_relation('tq_default')
                     i_real = i - t_base
                     if f"{j},{i_real}" in sc_link["q_tab_match"]:
                         set_relation("tq" + sc_link["q_tab_match"][f"{j},{i_real}"])
                     else:
-                        set_relation('tq_default')
-                elif j_type[0] == 'column':
+                        set_relation("tq_default")
+                elif j_type[0] == "column":
                     table, col = i_type[1], j_type[1]
-                    set_relation('tc_default')
+                    set_relation("tc_default")
 
                     if self.tc_foreign_key and self.match_foreign_key(desc, col, table):
-                        set_relation('tc_foreign_key')
+                        set_relation("tc_foreign_key")
                     if self.tc_table_match:
-                        col_table = desc['column_to_table'][str(col)]
+                        col_table = desc["column_to_table"][str(col)]
                         if col_table == table:
-                            if col in desc['primary_keys']:
-                                set_relation('tc_primary_key')
+                            if col in desc["primary_keys"]:
+                                set_relation("tc_primary_key")
                             else:
-                                set_relation('tc_table_match')
+                                set_relation("tc_table_match")
                         elif col_table is None:
-                            set_relation('tc_any_table')
-                elif j_type[0] == 'table':
+                            set_relation("tc_any_table")
+                elif j_type[0] == "table":
                     table1, table2 = i_type[1], j_type[1]
                     if table1 == table2:
-                        set_relation(('tt_dist', clamp(j - i, self.tt_max_dist)))
+                        set_relation(("tt_dist", clamp(j - i, self.tt_max_dist)))
                     else:
-                        set_relation('tt_default')
+                        set_relation("tt_default")
                         if self.tt_foreign_key:
-                            forward = table2 in desc['foreign_keys_tables'].get(str(table1), ())
-                            backward = table1 in desc['foreign_keys_tables'].get(str(table2), ())
+                            forward = table2 in desc["foreign_keys_tables"].get(
+                                str(table1), ()
+                            )
+                            backward = table1 in desc["foreign_keys_tables"].get(
+                                str(table2), ()
+                            )
                             if forward and backward:
-                                set_relation('tt_foreign_key_both')
+                                set_relation("tt_foreign_key_both")
                             elif forward:
-                                set_relation('tt_foreign_key_forward')
+                                set_relation("tt_foreign_key_forward")
                             elif backward:
-                                set_relation('tt_foreign_key_backward')
+                                set_relation("tt_foreign_key_backward")
         return relations
 
     @classmethod
     def match_foreign_key(cls, desc, col, table):
-        foreign_key_for = desc['foreign_keys'].get(str(col))
+        foreign_key_for = desc["foreign_keys"].get(str(col))
         if foreign_key_for is None:
             return False
 
-        foreign_table = desc['column_to_table'][str(foreign_key_for)]
-        return desc['column_to_table'][str(col)] == foreign_table
+        foreign_table = desc["column_to_table"][str(foreign_key_for)]
+        return desc["column_to_table"][str(col)] == foreign_table

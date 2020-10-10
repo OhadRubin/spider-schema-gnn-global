@@ -1,11 +1,17 @@
-
 from typing import Dict, List, Tuple
 
 import torch
 from allennlp.common.util import pad_sequence_to_length
 from allennlp.data import Vocabulary
 from allennlp.models import Model
-from allennlp.modules import TextFieldEmbedder, Seq2SeqEncoder, Seq2VecEncoder, Embedding, TimeDistributed
+from allennlp.modules import (
+    TextFieldEmbedder,
+    Seq2SeqEncoder,
+    Seq2VecEncoder,
+    Embedding,
+    TimeDistributed,
+)
+
 # from torch_geometric.data import Data, Batch
 
 # from modules.gated_graph_conv import GatedGraphConv
@@ -22,10 +28,20 @@ import torch
 from allennlp.common.util import pad_sequence_to_length
 
 from allennlp.data import Vocabulary
-from allennlp_semparse.fields.production_rule_field import ProductionRule, ProductionRuleArray
+from allennlp_semparse.fields.production_rule_field import (
+    ProductionRule,
+    ProductionRuleArray,
+)
 from allennlp.models import Model
-from allennlp.modules import TextFieldEmbedder, Seq2SeqEncoder, Seq2VecEncoder, Embedding, Attention, FeedForward, \
-    TimeDistributed
+from allennlp.modules import (
+    TextFieldEmbedder,
+    Seq2SeqEncoder,
+    Seq2VecEncoder,
+    Embedding,
+    Attention,
+    FeedForward,
+    TimeDistributed,
+)
 from allennlp.modules.seq2vec_encoders import BagOfEmbeddingsEncoder
 from allennlp.nn import util, Activation
 from allennlp_semparse.state_machines import BeamSearch
@@ -44,9 +60,13 @@ from semparse.contexts.spider_context_utils import action_sequence_to_sql
 from semparse.worlds.spider_world import SpiderWorld
 from state_machines.states.grammar_based_state import GrammarBasedState
 from state_machines.states.sql_state import SqlState
-from state_machines.transition_functions.attend_past_schema_items_transition import \
-    AttendPastSchemaItemsTransitionFunction
-from state_machines.transition_functions.linking_transition_function import LinkingTransitionFunction
+from state_machines.transition_functions.attend_past_schema_items_transition import (
+    AttendPastSchemaItemsTransitionFunction,
+)
+from state_machines.transition_functions.linking_transition_function import (
+    LinkingTransitionFunction,
+)
+
 
 def batched_span_select(target: torch.Tensor, spans: torch.LongTensor) -> torch.Tensor:
     """
@@ -85,11 +105,11 @@ def batched_span_select(target: torch.Tensor, spans: torch.LongTensor) -> torch.
     max_batch_span_width = span_widths.max().item() + 1
 
     # Shape: (1, 1, max_batch_span_width)
-    max_span_range_indices = util.get_range_vector(max_batch_span_width, util.get_device_of(target)).view(
-        1, 1, -1
-    )
-#     print(max_batch_span_width)
-#     print(max_span_range_indices)
+    max_span_range_indices = util.get_range_vector(
+        max_batch_span_width, util.get_device_of(target)
+    ).view(1, 1, -1)
+    #     print(max_batch_span_width)
+    #     print(max_span_range_indices)
     # Shape: (batch_size, num_spans, max_batch_span_width)
     # This is a broadcasted comparison - for each span we are considering,
     # we are creating a range vector of size max_span_width, but masking values
@@ -99,27 +119,28 @@ def batched_span_select(target: torch.Tensor, spans: torch.LongTensor) -> torch.
     # inclusive, so we want to include indices which are equal to span_widths rather
     # than using it as a non-inclusive upper bound.
     span_mask = max_span_range_indices <= span_widths
-#     raw_span_indices = span_ends - max_span_range_indices
+    #     raw_span_indices = span_ends - max_span_range_indices
     raw_span_indices = span_starts + max_span_range_indices
-#     print(raw_span_indices)
-#     print(target.size())
+    #     print(raw_span_indices)
+    #     print(target.size())
     # We also don't want to include span indices which are less than zero,
     # which happens because some spans near the beginning of the sequence
     # have an end index < max_batch_span_width, so we add this to the mask here.
     span_mask = span_mask & (raw_span_indices < target.size(1))
-#     print(span_mask)
-#     span_indices = torch.nn.functional.relu(raw_span_indices.float()).long()
+    #     print(span_mask)
+    #     span_indices = torch.nn.functional.relu(raw_span_indices.float()).long()
     span_indices = raw_span_indices * span_mask
-#     print(span_indices)
-    
+    #     print(span_indices)
+
     # Shape: (batch_size, num_spans, max_batch_span_width, embedding_dim)
     span_embeddings = util.batched_index_select(target, span_indices)
 
     return span_embeddings, span_mask
-    
-def get_neighbor_indices(worlds: List[SpiderWorld],
-                            num_entities: int,
-                            device: torch.device) -> torch.LongTensor:
+
+
+def get_neighbor_indices(
+    worlds: List[SpiderWorld], num_entities: int, device: torch.device
+) -> torch.LongTensor:
     """
     This method returns the indices of each entity's neighbors. A tensor
     is accepted as a parameter for copying purposes.
@@ -159,9 +180,9 @@ def get_neighbor_indices(worlds: List[SpiderWorld],
             # Pad with -1 instead of 0, since 0 represents a neighbor index.
             padded = pad_sequence_to_length(entity_neighbors, num_neighbors, lambda: -1)
             neighbor_indexes.append(padded)
-        neighbor_indexes = pad_sequence_to_length(neighbor_indexes,
-                                                    num_entities,
-                                                    lambda: [-1] * num_neighbors)
+        neighbor_indexes = pad_sequence_to_length(
+            neighbor_indexes, num_entities, lambda: [-1] * num_neighbors
+        )
         batch_neighbors.append(neighbor_indexes)
     # It is possible that none of the entities has any neighbors, since our definition of the
     # knowledge graph allows it when no entities or numbers were extracted from the question.
@@ -170,16 +191,20 @@ def get_neighbor_indices(worlds: List[SpiderWorld],
     return torch.tensor(batch_neighbors, device=device, dtype=torch.long)
 
 
-
 def query_difficulty(targets: torch.LongTensor, action_mapping, batch_index):
-    number_tables = len([action_mapping[(batch_index, int(a))] for a in targets if
-                            a >= 0 and action_mapping[(batch_index, int(a))].startswith('table_name')])
+    number_tables = len(
+        [
+            action_mapping[(batch_index, int(a))]
+            for a in targets
+            if a >= 0 and action_mapping[(batch_index, int(a))].startswith("table_name")
+        ]
+    )
     return number_tables > 1
 
 
-def get_type_vector(worlds: List[SpiderWorld],
-                        num_entities: int,
-                        device) -> Tuple[torch.LongTensor, Dict[int, int]]:
+def get_type_vector(
+    worlds: List[SpiderWorld], num_entities: int, device
+) -> Tuple[torch.LongTensor, Dict[int, int]]:
     """
     Produces the encoding for each entity's type. In addition, a map from a flattened entity
     index to type is returned to combine entity type operations into one method.
@@ -200,21 +225,31 @@ def get_type_vector(worlds: List[SpiderWorld],
     entity_types = {}
     batch_types = []
 
-    column_type_ids = ['boolean', 'foreign', 'number', 'others', 'primary', 'text', 'time']
+    column_type_ids = [
+        "boolean",
+        "foreign",
+        "number",
+        "others",
+        "primary",
+        "text",
+        "time",
+    ]
 
     for batch_index, world in enumerate(worlds):
         types = []
 
-        for entity_index, entity in enumerate(world.db_context.knowledge_graph.entities):
-            parts = entity.split(':')
+        for entity_index, entity in enumerate(
+            world.db_context.knowledge_graph.entities
+        ):
+            parts = entity.split(":")
             entity_main_type = parts[0]
-            if entity_main_type == 'column':
+            if entity_main_type == "column":
                 column_type = parts[1]
                 entity_type = column_type_ids.index(column_type)
-            elif entity_main_type == 'string':
+            elif entity_main_type == "string":
                 # cell value
                 entity_type = len(column_type_ids)
-            elif entity_main_type == 'table':
+            elif entity_main_type == "table":
                 entity_type = len(column_type_ids) + 1
             else:
                 raise (Exception("Unkown entity"))
@@ -235,7 +270,7 @@ def get_graph_adj_lists(device, world, global_entity_id, global_node=False):
     entity_mapping = {}
     for i, entity in enumerate(world.db_context.knowledge_graph.entities):
         entity_mapping[entity] = i
-    entity_mapping['_global_'] = global_entity_id
+    entity_mapping["_global_"] = global_entity_id
     adj_list_own = []  # column--table
     adj_list_link = []  # table->table / foreign->primary
     adj_list_linked = []  # table<-table / foreign<-primary
@@ -267,17 +302,19 @@ def get_graph_adj_lists(device, world, global_entity_id, global_node=False):
             else:
                 assert False
 
-        adj_list_global.append((idx_source, entity_mapping['_global_']))
+        adj_list_global.append((idx_source, entity_mapping["_global_"]))
 
     all_adj_types = [adj_list_own, adj_list_link, adj_list_linked]
 
     if global_node:
         all_adj_types.append(adj_list_global)
 
-    return [torch.tensor(l, device=device, dtype=torch.long).transpose(0, 1) if l
-            else torch.tensor(l, device=device, dtype=torch.long)
-            for l in all_adj_types]
-
+    return [
+        torch.tensor(l, device=device, dtype=torch.long).transpose(0, 1)
+        if l
+        else torch.tensor(l, device=device, dtype=torch.long)
+        for l in all_adj_types
+    ]
 
 
 def is_nonterminal(token: str):
@@ -292,15 +329,18 @@ def action_history_match(predicted: List[int], targets: torch.LongTensor) -> int
     if len(predicted) > targets.size(0):
         return 0
     predicted_tensor = targets.new_tensor(predicted)
-    targets_trimmed = targets[:len(predicted)]
+    targets_trimmed = targets[: len(predicted)]
     # Return 1 if the predicted sequence is anywhere in the list of targets.
     return torch.max(torch.min(targets_trimmed.eq(predicted_tensor), dim=0)[0]).item()
 
-def get_linking_probabilities(  worlds: List[SpiderWorld],
-                                linking_scores: torch.FloatTensor,
-                                question_mask: torch.LongTensor,
-                                entity_type_dict: Dict[int, int],
-                                num_entity_types) -> torch.FloatTensor:
+
+def get_linking_probabilities(
+    worlds: List[SpiderWorld],
+    linking_scores: torch.FloatTensor,
+    question_mask: torch.LongTensor,
+    entity_type_dict: Dict[int, int],
+    num_entity_types,
+) -> torch.FloatTensor:
     """
     Produces the probability of an entity given a question word and type. The logic below
     separates the entities by type since the softmax normalization term sums over entities
@@ -339,7 +379,10 @@ def get_linking_probabilities(  worlds: List[SpiderWorld],
             entity_indices = [0]
             entities = world.db_context.knowledge_graph.entities
             for entity_index, _ in enumerate(entities):
-                if entity_type_dict[batch_index * num_entities + entity_index] == type_index:
+                if (
+                    entity_type_dict[batch_index * num_entities + entity_index]
+                    == type_index
+                ):
                     entity_indices.append(entity_index)
 
             if len(entity_indices) == 1:
@@ -368,8 +411,9 @@ def get_linking_probabilities(  worlds: List[SpiderWorld],
 
         # We need to add padding here if we don't have the right number of entities.
         if num_entities_in_instance != num_entities:
-            zeros = linking_scores.new_zeros(num_question_tokens,
-                                                num_entities - num_entities_in_instance)
+            zeros = linking_scores.new_zeros(
+                num_question_tokens, num_entities - num_entities_in_instance
+            )
             all_probabilities.append(zeros)
 
         # (num_question_tokens, num_entities)
@@ -379,10 +423,12 @@ def get_linking_probabilities(  worlds: List[SpiderWorld],
     return batch_probabilities * question_mask.unsqueeze(-1).float()
 
 
-def get_schema_graph_encoding(gnn,
-                                worlds: List[SpiderWorld],
-                                initial_graph_embeddings: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-    max_num_entities = max([len(world.db_context.knowledge_graph.entities) for world in worlds])
+def get_schema_graph_encoding(
+    gnn, worlds: List[SpiderWorld], initial_graph_embeddings: torch.Tensor
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    max_num_entities = max(
+        [len(world.db_context.knowledge_graph.entities) for world in worlds]
+    )
     batch_size = initial_graph_embeddings.size(0)
 
     graph_data_list = []
@@ -390,16 +436,19 @@ def get_schema_graph_encoding(gnn,
     for batch_index, world in enumerate(worlds):
         x = initial_graph_embeddings[batch_index]
 
-        adj_list = get_graph_adj_lists(initial_graph_embeddings.device,
-                                                world, initial_graph_embeddings.size(1) - 1)
+        adj_list = get_graph_adj_lists(
+            initial_graph_embeddings.device, world, initial_graph_embeddings.size(1) - 1
+        )
         graph_data = Data(x)
         for i, l in enumerate(adj_list):
-            graph_data[f'edge_index_{i}'] = l
+            graph_data[f"edge_index_{i}"] = l
         graph_data_list.append(graph_data)
 
     batch = Batch.from_data_list(graph_data_list)
 
-    gnn_output = gnn(batch.x, [batch[f'edge_index_{i}'] for i in range(gnn.num_edge_types)])
+    gnn_output = gnn(
+        batch.x, [batch[f"edge_index_{i}"] for i in range(gnn.num_edge_types)]
+    )
 
     num_nodes = max_num_entities
     gnn_output = gnn_output.view(batch_size, num_nodes, -1)

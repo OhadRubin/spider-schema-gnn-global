@@ -11,6 +11,7 @@ local dataset_path = "dataset/";
     "lazy": false,
     "cache_directory": "cache/train",
     "keep_if_unparsable": false,
+    // "max_instances": null,
     "max_instances": 10,
   },
   "validation_dataset_reader": {
@@ -20,6 +21,7 @@ local dataset_path = "dataset/";
     "cache_directory": "cache/val",
     "lazy": false,
     "keep_if_unparsable": true,
+    // "max_instances": null,
     "max_instances": 10,
   },
   "train_data_path": dataset_path + "train_spider.json",
@@ -73,12 +75,12 @@ local dataset_path = "dataset/";
     // "batch_sampler" :{}
     
   },
-  // "validation_dataloader": {
-  //   "batch_size" : 1,
-  // },
+  "validation_data_loader": {
+    "batch_size" : 1,
+  },
   "trainer": {
     "num_epochs": 100,
-    "cuda_device": 0,
+    //"cuda_device": std.extVar('gpu'),
     "patience": 50,
     "validation_metric": "+sql_match",
     "optimizer": {

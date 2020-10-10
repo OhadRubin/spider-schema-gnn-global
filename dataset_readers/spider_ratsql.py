@@ -28,7 +28,6 @@ import torch
 from tqdm import tqdm
 
 
-
 import json
 import logging
 import os
@@ -38,15 +37,27 @@ import codecs
 import dill
 from allennlp.common.checks import ConfigurationError
 from allennlp.data import DatasetReader, Tokenizer, TokenIndexer, Field, Instance
-from allennlp.data.fields import TextField, ListField, IndexField, MetadataField, ArrayField
+from allennlp.data.fields import (
+    TextField,
+    ListField,
+    IndexField,
+    MetadataField,
+    ArrayField,
+)
 from allennlp.data.token_indexers import SingleIdTokenIndexer
+
 # from allennlp.data.tokenizers import WordTokenizer
 from allennlp.data.tokenizers.spacy_tokenizer import SpacyTokenizer
 from overrides import overrides
 from spacy.symbols import ORTH, LEMMA
 
-from dataset_readers.dataset_util.spider_utils import fix_number_value, disambiguate_items
-from dataset_readers.fields.spider_knowledge_graph_field import SpiderKnowledgeGraphField
+from dataset_readers.dataset_util.spider_utils import (
+    fix_number_value,
+    disambiguate_items,
+)
+from dataset_readers.fields.spider_knowledge_graph_field import (
+    SpiderKnowledgeGraphField,
+)
 from dataset_readers.fields.production_rule_field import ProductionRuleField
 from semparse.contexts.spider_db_context import SpiderDBContext
 from semparse.worlds.spider_world import SpiderWorld
@@ -61,29 +72,30 @@ import jsonpickle
 from time import time
 import pathlib
 from tqdm import tqdm
-from models.semantic_parsing import parser_utils 
+from models.semantic_parsing import parser_utils
 
 logger = logging.getLogger(__name__)
 
-STOPWORDS = set(nltk.corpus.stopwords.words('english'))
+STOPWORDS = set(nltk.corpus.stopwords.words("english"))
 PUNKS = set(a for a in string.punctuation)
-
 
 
 def normalize_schema_constant(entity):
     col = "_".join(entity)
-    col =  col.split("_<table-sep>_")
-    if len(col)==1:
+    col = col.split("_<table-sep>_")
+    if len(col) == 1:
         return "_".join(entity)
     else:
         table = col[1]
         col = col[0].split(">_")[1]
         return f"{table}@{col}"
 
+
 def clamp(value, abs_max):
     value = max(-abs_max, value)
     value = min(abs_max, value)
     return value
+
 
 def to_dict_with_sorted_values(d, key=None):
     return {k: sorted(v, key=key) for k, v in d.items()}
@@ -106,6 +118,7 @@ def tuplify(x):
     if not isinstance(x, (tuple, list)):
         return x
     return tuple(tuplify(elem) for elem in x)
+
 
 @attr.s
 class SpiderItem:
@@ -161,21 +174,25 @@ class PreprocessedSchema:
 
 @DatasetReader.register("spider_ratsql")
 class SpiderRatsqlDatasetReader(DatasetReader):
-    def __init__(self,
-                 lazy: bool = False,
-                 question_token_indexers: Dict[str, TokenIndexer] = None,
-                 keep_if_unparsable: bool = True,
-                 tables_file: str = None,
-                 dataset_path: str = 'dataset/database',
-                 cache_directory: str = "cache/train",
-                 include_table_name_in_column=True,
-                 fix_issue_16_primary_keys=False,
-                 qq_max_dist=2,
-                 cc_max_dist=2,
-                 tt_max_dist=2,
-                 max_instances=None):
+    def __init__(
+        self,
+        lazy: bool = False,
+        question_token_indexers: Dict[str, TokenIndexer] = None,
+        keep_if_unparsable: bool = True,
+        tables_file: str = None,
+        dataset_path: str = "dataset/database",
+        cache_directory: str = "cache/train",
+        include_table_name_in_column=True,
+        fix_issue_16_primary_keys=False,
+        qq_max_dist=2,
+        cc_max_dist=2,
+        tt_max_dist=2,
+        max_instances=None,
+    ):
 
-        super().__init__(lazy=lazy, cache_directory=cache_directory, max_instances=max_instances)
+        super().__init__(
+            lazy=lazy, cache_directory=cache_directory, max_instances=max_instances
+        )
         # super().__init__(lazy=lazy,cache_directory=cache_directory,max_instances=None)
         self._max_instances = max_instances
         # default spacy tokenizer splits the common token 'id' to ['i', 'd'], we here write a manual fix for that
@@ -184,22 +201,21 @@ class SpiderRatsqlDatasetReader(DatasetReader):
         # self._utterance_token_indexers = {"tokens":PretrainedTransformerIndexer("distilbert-base-uncased")}
         # self._utterance_token_indexers = {"tokens":PretrainedTransformerMismatchedIndexer("bert-base-uncased")}
 
-
         # self._utterance_token_indexers = {"tokens":PretrainedTransformerIndexer("bert-base-uncased")}
         self._utterance_token_indexers = question_token_indexers
-        
-        self._tokenizer = self._utterance_token_indexers['tokens']._allennlp_tokenizer
+
+        self._tokenizer = self._utterance_token_indexers["tokens"]._allennlp_tokenizer
         # self._utterance_token_indexers['tokens']._tokenizer = self._utterance_token_indexers['tokens']._allennlp_tokenizer
         # self._tokenizer = spacy_tokenizer
 
         # self._utterance_token_indexers = question_token_indexers or {'tokens': SingleIdTokenIndexer()}
-        
+
         self._keep_if_unparsable = keep_if_unparsable
 
         self._tables_file = tables_file
         self._dataset_path = dataset_path
 
-        #ratsql
+        # ratsql
         self.include_table_name_in_column = include_table_name_in_column
         self.fix_issue_16_primary_keys = fix_issue_16_primary_keys
         self.texts = collections.defaultdict(list)
@@ -213,75 +229,102 @@ class SpiderRatsqlDatasetReader(DatasetReader):
 
         def add_relation(name):
             self.relation_ids[name] = len(self.relation_ids)
-        
 
         def add_rel_dist(name, max_dist):
             for i in range(-max_dist, max_dist + 1):
                 add_relation((name, i))
 
-        add_rel_dist('qq_dist', qq_max_dist)
-        add_rel_dist('cc_dist', cc_max_dist)
-        add_rel_dist('tt_dist', tt_max_dist)
+        add_rel_dist("qq_dist", qq_max_dist)
+        add_rel_dist("cc_dist", cc_max_dist)
+        add_rel_dist("tt_dist", tt_max_dist)
 
-        rel_names = ['qc_default','qt_default','cq_default','cc_default','cc_foreign_key_forward',
-                    'cc_foreign_key_backward','cc_table_match','ct_default','ct_foreign_key',
-                    'ct_primary_key','ct_table_match','ct_any_table','tq_default','tc_default','tc_primary_key',
-                    'tc_table_match','tc_any_table','tc_foreign_key',
-                    'tt_default','tt_foreign_key_forward','tt_foreign_key_backward','tt_foreign_key_both',
-                    'qcCEM','cqCEM','qtTEM','tqTEM','qcCPM','cqCPM','qtTPM','tqTPM',
-                    "qcNUMBER","cqNUMBER","qcTIME","cqTIME","qcCELLMATCH","cqCELLMATCH",]
+        rel_names = [
+            "qc_default",
+            "qt_default",
+            "cq_default",
+            "cc_default",
+            "cc_foreign_key_forward",
+            "cc_foreign_key_backward",
+            "cc_table_match",
+            "ct_default",
+            "ct_foreign_key",
+            "ct_primary_key",
+            "ct_table_match",
+            "ct_any_table",
+            "tq_default",
+            "tc_default",
+            "tc_primary_key",
+            "tc_table_match",
+            "tc_any_table",
+            "tc_foreign_key",
+            "tt_default",
+            "tt_foreign_key_forward",
+            "tt_foreign_key_backward",
+            "tt_foreign_key_both",
+            "qcCEM",
+            "cqCEM",
+            "qtTEM",
+            "tqTEM",
+            "qcCPM",
+            "cqCPM",
+            "qtTPM",
+            "tqTPM",
+            "qcNUMBER",
+            "cqNUMBER",
+            "qcTIME",
+            "cqTIME",
+            "qcCELLMATCH",
+            "cqCELLMATCH",
+        ]
         for rel in rel_names:
             add_relation(rel)
 
-        self.schemas=None
-        self.eval_foreign_key_maps=None
+        self.schemas = None
+        self.eval_foreign_key_maps = None
         self.schemas, self.eval_foreign_key_maps = self.load_tables([self._tables_file])
 
         for db_id, schema in self.schemas.items():
             sqlite_path = Path(self._dataset_path) / db_id / f"{db_id}.sqlite"
             source: sqlite3.Connection
             with sqlite3.connect(sqlite_path) as source:
-                dest = sqlite3.connect(':memory:')
+                dest = sqlite3.connect(":memory:")
                 dest.row_factory = sqlite3.Row
                 source.backup(dest)
             schema.connection = dest
-        self.relation_ids_inv = {v:k for k,v in self.relation_ids.items()}
+        self.relation_ids_inv = {v: k for k, v in self.relation_ids.items()}
         print(self.relation_ids)
         # super().__init__(lazy=lazy,max_instances=max_instances)
 
-
-    
-
-
     @overrides
     def _read(self, file_path: str):
-        if file_path.endswith('.json'):
+        if file_path.endswith(".json"):
             yield from self._read_examples_file(file_path)
         else:
             raise ConfigurationError(f"Don't know how to read filetype of {file_path}")
 
     def _read_examples_file(self, file_path: str):
-        cache_dir = os.path.join('cache', file_path.split("/")[-1])
-
+        cache_dir = os.path.join("cache", file_path.split("/")[-1])
 
         cnt = 0
         with open(file_path, "r") as data_file:
-            
+
             json_obj = json.load(data_file)
             for total_cnt, ex in tqdm(enumerate(json_obj)):
                 # if total_cnt<2150:
-                    # continue
-                if total_cnt==self._max_instances:
+                # continue
+                if total_cnt == self._max_instances:
                     break
                 query_tokens = None
-                if 'query_toks' in ex:
-
-                    
+                if "query_toks" in ex:
 
                     try:
                         ex = fix_number_value(ex)
-                        query_tokens = disambiguate_items(ex['db_id'], ex['query_toks_no_value'],
-                                                                self._tables_file, allow_aliases=False)
+                        query_tokens = disambiguate_items(
+                            ex["db_id"],
+                            ex["query_toks_no_value"],
+                            self._tables_file,
+                            allow_aliases=False,
+                        )
                     except Exception as e:
                         # there are two examples in the train set that are wrongly formatted, skip them
                         print(f"error with {ex['query']}")
@@ -289,9 +332,11 @@ class SpiderRatsqlDatasetReader(DatasetReader):
                         continue
 
                 ins = self.text_to_instance(
-                    utterance=ex['question'],
-                    db_id=ex['db_id'],
-                    sql=query_tokens,orig=ex)
+                    utterance=ex["question"],
+                    db_id=ex["db_id"],
+                    sql=query_tokens,
+                    orig=ex,
+                )
                 ins = self.process_instance(ins, total_cnt)
 
                 if ins is not None:
@@ -299,122 +344,145 @@ class SpiderRatsqlDatasetReader(DatasetReader):
                 # sys.exc_clear()
                 # sys.exc_traceback = sys.last_traceback = None
 
-    def text_to_instance(self,
-                         utterance: str,
-                         db_id: str,
-                         sql: List[str] = None,
-                         orig=None):
+    def text_to_instance(
+        self, utterance: str, db_id: str, sql: List[str] = None, orig=None
+    ):
         fields: Dict[str, Field] = {}
 
-        
-        db_context = SpiderDBContext(db_id, utterance, tokenizer=self._tokenizer,
-                                     tables_file=self._tables_file, dataset_path=self._dataset_path)
-        table_field = SpiderKnowledgeGraphField(db_context.knowledge_graph,
-                                                db_context.tokenized_utterance,
-                                                self._utterance_token_indexers,
-                                                entity_tokens=db_context.entity_tokens,
-                                                include_in_vocab=False,
-                                                max_table_tokens=None)
+        db_context = SpiderDBContext(
+            db_id,
+            utterance,
+            tokenizer=self._tokenizer,
+            tables_file=self._tables_file,
+            dataset_path=self._dataset_path,
+        )
+        table_field = SpiderKnowledgeGraphField(
+            db_context.knowledge_graph,
+            db_context.tokenized_utterance,
+            self._utterance_token_indexers,
+            entity_tokens=db_context.entity_tokens,
+            include_in_vocab=False,
+            max_table_tokens=None,
+        )
 
         world = SpiderWorld(db_context, query=sql)
 
         item = SpiderItem(
             # text=orig['question_toks'],
             text=[x.text for x in db_context.tokenized_utterance[1:-1]],
-            code=orig['sql'],
+            code=orig["sql"],
             schema=self.schemas[db_id],
             orig=orig,
-            orig_schema=self.schemas[db_id].orig)
+            orig_schema=self.schemas[db_id].orig,
+        )
         desc = self.preprocess_item(item, "train")
 
-        schema_strings = [normalize_schema_constant(x) for x in desc['columns']+desc['tables']]
+        schema_strings = [
+            normalize_schema_constant(x) for x in desc["columns"] + desc["tables"]
+        ]
         fields["schema_strings"] = MetadataField(schema_strings)
-        q = [x.lower() for x in desc['question']]
-        c = ["_".join(x).lower() for x in desc['columns']]
-    
-        t = ["_".join(x).lower() for x in desc['tables']]
+        q = [x.lower() for x in desc["question"]]
+        c = ["_".join(x).lower() for x in desc["columns"]]
+
+        t = ["_".join(x).lower() for x in desc["tables"]]
         t = ["<table>" + x for x in t]
         enc = q + c + t
-        relation = self.compute_relations(desc, len(enc), len(q), len(c), range(len(c)+1), range(len(t)+1))
+        relation = self.compute_relations(
+            desc, len(enc), len(q), len(c), range(len(c) + 1), range(len(t) + 1)
+        )
 
         rel_dict = defaultdict(dict)
-        for i,x in  enumerate(list(range(len(q)))+schema_strings):
-            for j,y in  enumerate(list(range(len(q)))+schema_strings):
-                rel_dict[x][y]= relation[i,j]
-
+        for i, x in enumerate(list(range(len(q))) + schema_strings):
+            for j, y in enumerate(list(range(len(q))) + schema_strings):
+                rel_dict[x][y] = relation[i, j]
 
         entities = []
-        for entity_text,entity in zip(db_context.entity_texts,
-                                    db_context.knowledge_graph.entities):
-            entity_text = entity_text.replace(" ","_")
+        for entity_text, entity in zip(
+            db_context.entity_texts, db_context.knowledge_graph.entities
+        ):
+            entity_text = entity_text.replace(" ", "_")
             if entity.split(":")[0] == "column":
                 table = entity.split(":")[2]
-                table = db_context.schema[table].text.lower().replace(" ","_")
+                table = db_context.schema[table].text.lower().replace(" ", "_")
                 entities.append(f"{table}@{entity_text}")
-                
+
             else:
                 entities.append(entity_text)
-        new_enc = list(range(len(q)))+entities
-        new_relation = np.zeros([len(new_enc),len(new_enc)])
+        new_enc = list(range(len(q))) + entities
+        new_relation = np.zeros([len(new_enc), len(new_enc)])
         try:
-            for i,x in  enumerate(new_enc):
-                for j,y in  enumerate(new_enc):
+            for i, x in enumerate(new_enc):
+                for j, y in enumerate(new_enc):
                     new_relation[i][j] = rel_dict[x][y]
         except:
             print("err")
             return None
-        fields['relation'] = ArrayField(new_relation,padding_value=-1,dtype=np.int32)
+        fields["relation"] = ArrayField(new_relation, padding_value=-1, dtype=np.int32)
 
-        cls_token = self._tokenizer.tokenize('a')[0]
-        eos_token = self._tokenizer.tokenize('a')[-1]
+        cls_token = self._tokenizer.tokenize("a")[0]
+        eos_token = self._tokenizer.tokenize("a")[-1]
         enc_field_list = []
 
         def table_text_encoding(entity_text_list):
             token_list = []
             entity_text_list = [":".join(x.split(":")[1:]) for x in entity_text_list]
             mask_list = []
-            for i,curr in enumerate(entity_text_list):
-                if ":" in curr: #col
-                    col_type,_,col_name = curr.split(":")
+            for i, curr in enumerate(entity_text_list):
+                if ":" in curr:  # col
+                    col_type, _, col_name = curr.split(":")
                     curr = f"{col_name}:{col_type}"
                     token_list.append(curr)
-                    if (i+1)<len(d) and ":" in d[i+1]:
+                    if (i + 1) < len(entity_text_list) and ":" in entity_text_list[
+                        i + 1
+                    ]:
                         token_list.append(",")
                     else:
                         token_list.append(")\n")
-                    mask_list.extend([True,False])
+                    mask_list.extend([True, False])
                 else:
                     token_list.append(curr)
                     token_list.append("(")
-                    mask_list.extend([True,False])
+                    mask_list.extend([True, False])
             return token_list, mask_list
-        q= [[x] for x in db_context.tokenized_utterance[1:-1]]
+
+        q = [[x] for x in db_context.tokenized_utterance[1:-1]]
         schema_tokens_pre_pre = [x for x in db_context.knowledge_graph.entities]
-        schema_tokens_pre, schema_tokens_pre_mask = table_text_encoding(db_context.knowledge_graph.entities)
+        schema_tokens_pre, schema_tokens_pre_mask = table_text_encoding(
+            db_context.knowledge_graph.entities
+        )
         schema_tokens = [self._tokenizer.tokenize(x)[1:-1] for x in schema_tokens_pre]
         schema_tokens = [[y for y in x if y.text not in ["_"]] for x in schema_tokens]
 
         enc_field_list = []
         offsets = []
-        mask_list = [False]+([True]*len(q))+[False]+schema_tokens_pre_mask + [False]
-        for mask,x in zip(mask_list,[[cls_token]]+q+[[eos_token]]+schema_tokens+[[eos_token]]):
+        mask_list = (
+            [False] + ([True] * len(q)) + [False] + schema_tokens_pre_mask + [False]
+        )
+        for mask, x in zip(
+            mask_list, [[cls_token]] + q + [[eos_token]] + schema_tokens + [[eos_token]]
+        ):
             start_offset = len(enc_field_list)
-            enc_field_list.extend(x) 
+            enc_field_list.extend(x)
             if mask:
-                offsets.append([start_offset,len(enc_field_list)-1])
+                offsets.append([start_offset, len(enc_field_list) - 1])
 
-        if len(enc_field_list)>512:
+        if len(enc_field_list) > 512:
             return None
 
-        c = parser_utils.batched_span_select(torch.tensor([[c.text_id] for c in enc_field_list]).unsqueeze(0), torch.tensor(offsets).unsqueeze(0))
-        decode = lambda x: self._tokenizer.tokenizer.decode(x,skip_special_tokens=True)
+        # c = parser_utils.batched_span_select(torch.tensor([[c.text_id] for c in enc_field_list]).unsqueeze(0), torch.tensor(offsets).unsqueeze(0))
+        # decode = lambda x: self._tokenizer.tokenizer.decode(x,skip_special_tokens=True)
         # print([decode(x.tolist()) for x in c[0].squeeze() ])
 
-
-        fields['lengths'] = ArrayField(np.array([[0,len(q)-1],[len(q),len(q)+len(schema_tokens_pre_pre)-1]]),dtype=np.int32)
-        fields['offsets'] = ArrayField(np.array(offsets),padding_value=0,dtype=np.int32)
+        fields["lengths"] = ArrayField(
+            np.array(
+                [[0, len(q) - 1], [len(q), len(q) + len(schema_tokens_pre_pre) - 1]]
+            ),
+            dtype=np.int32,
+        )
+        fields["offsets"] = ArrayField(
+            np.array(offsets), padding_value=0, dtype=np.int32
+        )
         fields["enc"] = TextField(enc_field_list, self._utterance_token_indexers)
-
 
         action_sequence, all_actions = world.get_action_sequence_and_all_actions()
         if action_sequence is None and self._keep_if_unparsable:
@@ -426,23 +494,26 @@ class SpiderRatsqlDatasetReader(DatasetReader):
         production_rule_fields: List[Field] = []
 
         for production_rule in all_actions:
-            nonterminal, rhs = production_rule.split(' -> ')
-            production_rule = ' '.join(production_rule.split(' '))
-            field = ProductionRuleField(production_rule,
-                                        world.is_global_rule(rhs),
-                                        nonterminal=nonterminal)
+            nonterminal, rhs = production_rule.split(" -> ")
+            production_rule = " ".join(production_rule.split(" "))
+            field = ProductionRuleField(
+                production_rule, world.is_global_rule(rhs), nonterminal=nonterminal
+            )
             production_rule_fields.append(field)
 
         valid_actions_field = ListField(production_rule_fields)
         fields["valid_actions"] = valid_actions_field
 
-        action_map = {action.rule: i  # type: ignore
-                      for i, action in enumerate(valid_actions_field.field_list)}
-        
-            
+        action_map = {
+            action.rule: i  # type: ignore
+            for i, action in enumerate(valid_actions_field.field_list)
+        }
+
         # print(action_sequence_to_sql([production_rule for production_rule in action_sequence],add_table_names=True))
         for production_rule in action_sequence:
-            index_fields.append(IndexField(action_map[production_rule], valid_actions_field))
+            index_fields.append(
+                IndexField(action_map[production_rule], valid_actions_field)
+            )
         if not action_sequence:
             index_fields = [IndexField(-1, valid_actions_field)]
         # print(' '.join(world.get_query_without_table_hints()))
@@ -453,11 +524,10 @@ class SpiderRatsqlDatasetReader(DatasetReader):
         # fields["schema"] = table_field
         ins = Instance(fields)
 
-        return  ins
+        return ins
 
     def process_instance(self, instance: Instance, index: int):
         return instance
-
 
     @overrides
     def _instances_from_cache_file(self, cache_filename: str):
@@ -467,45 +537,47 @@ class SpiderRatsqlDatasetReader(DatasetReader):
             if "train" in cache_filename:
                 yield from d
             # for line in cache_file:
-                # yield self.deserialize_instance(line.strip())
+            # yield self.deserialize_instance(line.strip())
 
     @overrides
     def _instances_to_cache_file(self, cache_filename, instances) -> None:
         with open(cache_filename, "wb") as cache:
-            dill.dump(instances,cache)
+            dill.dump(instances, cache)
             # for instance in Tqdm.tqdm(instances):
-                # cache.write(self.serialize_instance(instance) + "\n")
+            # cache.write(self.serialize_instance(instance) + "\n")
 
-
-    def compute_relations(self, desc, enc_length, q_enc_length, c_enc_length, c_boundaries, t_boundaries):
-        sc_link = desc.get('sc_link', {'q_col_match': {}, 'q_tab_match': {}})
-        cv_link = desc.get('cv_link', {'num_date_match': {}, 'cell_match': {}})
+    def compute_relations(
+        self, desc, enc_length, q_enc_length, c_enc_length, c_boundaries, t_boundaries
+    ):
+        sc_link = desc.get("sc_link", {"q_col_match": {}, "q_tab_match": {}})
+        cv_link = desc.get("cv_link", {"num_date_match": {}, "cell_match": {}})
 
         # Catalogue which things are where
         loc_types = {}
         for i in range(q_enc_length):
-            loc_types[i] = ('question',)
+            loc_types[i] = ("question",)
 
         c_base = q_enc_length
         for c_id, (c_start, c_end) in enumerate(zip(c_boundaries, c_boundaries[1:])):
             for i in range(c_start + c_base, c_end + c_base):
-                loc_types[i] = ('column', c_id)
+                loc_types[i] = ("column", c_id)
         t_base = q_enc_length + c_enc_length
         for t_id, (t_start, t_end) in enumerate(zip(t_boundaries, t_boundaries[1:])):
-            
+
             for i in range(t_start + t_base, t_end + t_base):
-                loc_types[i] = ('table', t_id)
+                loc_types[i] = ("table", t_id)
         relations = np.empty((enc_length, enc_length), dtype=np.int64)
 
         for i, j in itertools.product(range(enc_length), repeat=2):
+
             def set_relation(name):
                 relations[i, j] = self.relation_ids[name]
 
             i_type, j_type = loc_types[i], loc_types[j]
-            if i_type[0] == 'question':
-                if j_type[0] == 'question':
-                    set_relation(('qq_dist', clamp(j - i, self.qq_max_dist)))
-                elif j_type[0] == 'column':
+            if i_type[0] == "question":
+                if j_type[0] == "question":
+                    set_relation(("qq_dist", clamp(j - i, self.qq_max_dist)))
+                elif j_type[0] == "column":
                     # set_relation('qc_default')
                     j_real = j - c_base
                     if f"{i},{j_real}" in sc_link["q_col_match"]:
@@ -515,16 +587,16 @@ class SpiderRatsqlDatasetReader(DatasetReader):
                     elif f"{i},{j_real}" in cv_link["num_date_match"]:
                         set_relation("qc" + cv_link["num_date_match"][f"{i},{j_real}"])
                     else:
-                        set_relation('qc_default')
-                elif j_type[0] == 'table':
+                        set_relation("qc_default")
+                elif j_type[0] == "table":
                     j_real = j - t_base
                     if f"{i},{j_real}" in sc_link["q_tab_match"]:
                         set_relation("qt" + sc_link["q_tab_match"][f"{i},{j_real}"])
                     else:
-                        set_relation('qt_default')
+                        set_relation("qt_default")
 
-            elif i_type[0] == 'column':
-                if j_type[0] == 'question':
+            elif i_type[0] == "column":
+                if j_type[0] == "question":
                     i_real = i - c_base
                     if f"{j},{i_real}" in sc_link["q_col_match"]:
                         set_relation("cq" + sc_link["q_col_match"][f"{j},{i_real}"])
@@ -533,114 +605,127 @@ class SpiderRatsqlDatasetReader(DatasetReader):
                     elif f"{j},{i_real}" in cv_link["num_date_match"]:
                         set_relation("cq" + cv_link["num_date_match"][f"{j},{i_real}"])
                     else:
-                        set_relation('cq_default')
-                elif j_type[0] == 'column':
+                        set_relation("cq_default")
+                elif j_type[0] == "column":
                     col1, col2 = i_type[1], j_type[1]
                     if col1 == col2:
-                        set_relation(('cc_dist', clamp(j - i, self.cc_max_dist)))
+                        set_relation(("cc_dist", clamp(j - i, self.cc_max_dist)))
                     else:
-                        set_relation('cc_default')
-                        if desc['foreign_keys'].get(str(col1)) == col2:
-                            set_relation('cc_foreign_key_forward')
-                        if desc['foreign_keys'].get(str(col2)) == col1:
-                            set_relation('cc_foreign_key_backward')
-                        if (desc['column_to_table'][str(col1)] == desc['column_to_table'][str(col2)]):
-                            set_relation('cc_table_match')
+                        set_relation("cc_default")
+                        if desc["foreign_keys"].get(str(col1)) == col2:
+                            set_relation("cc_foreign_key_forward")
+                        if desc["foreign_keys"].get(str(col2)) == col1:
+                            set_relation("cc_foreign_key_backward")
+                        if (
+                            desc["column_to_table"][str(col1)]
+                            == desc["column_to_table"][str(col2)]
+                        ):
+                            set_relation("cc_table_match")
 
-                elif j_type[0] == 'table':
+                elif j_type[0] == "table":
                     col, table = i_type[1], j_type[1]
-                    set_relation('ct_default')
+                    set_relation("ct_default")
                     if self.match_foreign_key(desc, col, table):
-                        set_relation('ct_foreign_key')
-                    col_table = desc['column_to_table'][str(col)]
+                        set_relation("ct_foreign_key")
+                    col_table = desc["column_to_table"][str(col)]
                     if col_table == table:
-                        if col in desc['primary_keys']:
-                            set_relation('ct_primary_key')
+                        if col in desc["primary_keys"]:
+                            set_relation("ct_primary_key")
                         else:
-                            set_relation('ct_table_match')
+                            set_relation("ct_table_match")
                     elif col_table is None:
-                        set_relation('ct_any_table')
+                        set_relation("ct_any_table")
 
-            elif i_type[0] == 'table':
-                if j_type[0] == 'question':
+            elif i_type[0] == "table":
+                if j_type[0] == "question":
                     i_real = i - t_base
                     if f"{j},{i_real}" in sc_link["q_tab_match"]:
                         set_relation("tq" + sc_link["q_tab_match"][f"{j},{i_real}"])
                     else:
-                        set_relation('tq_default')
-                elif j_type[0] == 'column':
+                        set_relation("tq_default")
+                elif j_type[0] == "column":
                     table, col = i_type[1], j_type[1]
-                    set_relation('tc_default')
+                    set_relation("tc_default")
 
                     if self.match_foreign_key(desc, col, table):
-                        set_relation('tc_foreign_key')
-                    col_table = desc['column_to_table'][str(col)]
+                        set_relation("tc_foreign_key")
+                    col_table = desc["column_to_table"][str(col)]
                     if col_table == table:
-                        if col in desc['primary_keys']:
-                            set_relation('tc_primary_key')
+                        if col in desc["primary_keys"]:
+                            set_relation("tc_primary_key")
                         else:
-                            set_relation('tc_table_match')
+                            set_relation("tc_table_match")
                     elif col_table is None:
-                        set_relation('tc_any_table')
-                elif j_type[0] == 'table':
+                        set_relation("tc_any_table")
+                elif j_type[0] == "table":
                     table1, table2 = i_type[1], j_type[1]
                     if table1 == table2:
-                        set_relation(('tt_dist', clamp(j - i, self.tt_max_dist)))
+                        set_relation(("tt_dist", clamp(j - i, self.tt_max_dist)))
                     else:
-                        set_relation('tt_default')
-                        forward = table2 in desc['foreign_keys_tables'].get(str(table1), ())
-                        backward = table1 in desc['foreign_keys_tables'].get(str(table2), ())
+                        set_relation("tt_default")
+                        forward = table2 in desc["foreign_keys_tables"].get(
+                            str(table1), ()
+                        )
+                        backward = table1 in desc["foreign_keys_tables"].get(
+                            str(table2), ()
+                        )
                         if forward and backward:
-                            set_relation('tt_foreign_key_both')
+                            set_relation("tt_foreign_key_both")
                         elif forward:
-                            set_relation('tt_foreign_key_forward')
+                            set_relation("tt_foreign_key_forward")
                         elif backward:
-                            set_relation('tt_foreign_key_backward')
+                            set_relation("tt_foreign_key_backward")
         return relations
 
     @classmethod
     def match_foreign_key(cls, desc, col, table):
-        foreign_key_for = desc['foreign_keys'].get(str(col))
+        foreign_key_for = desc["foreign_keys"].get(str(col))
         if foreign_key_for is None:
             return False
 
-        foreign_table = desc['column_to_table'][str(foreign_key_for)]
-        return desc['column_to_table'][str(col)] == foreign_table
+        foreign_table = desc["column_to_table"][str(foreign_key_for)]
+        return desc["column_to_table"][str(col)] == foreign_table
 
     def validate_item(self, item, section):
         return True, None
 
     def preprocess_item(self, item, validation_info):
-        question, question_for_copying = item.text,item.text
+        question, question_for_copying = item.text, item.text
         preproc_schema = self._preprocess_schema(item.schema)
         assert preproc_schema.column_names[0][0].startswith("<type:")
         column_names_without_types = [col[1:] for col in preproc_schema.column_names]
-        sc_link = self.compute_schema_linking(question, column_names_without_types, preproc_schema.table_names)
+        sc_link = self.compute_schema_linking(
+            question, column_names_without_types, preproc_schema.table_names
+        )
 
         cv_link = self.compute_cell_value_linking(question, item.schema)
 
         return {
-            'raw_question': item.orig['question'],
-            'question': question,
-            'question_for_copying': question_for_copying,
-            'db_id': item.schema.db_id,
-            'sc_link': sc_link,
-            'cv_link': cv_link,
-            'columns': preproc_schema.column_names,
-            'tables': preproc_schema.table_names,
-            'table_bounds': preproc_schema.table_bounds,
-            'column_to_table': preproc_schema.column_to_table,
-            'table_to_columns': preproc_schema.table_to_columns,
-            'foreign_keys': preproc_schema.foreign_keys,
-            'foreign_keys_tables': preproc_schema.foreign_keys_tables,
-            'primary_keys': preproc_schema.primary_keys,
+            "raw_question": item.orig["question"],
+            "question": question,
+            "question_for_copying": question_for_copying,
+            "db_id": item.schema.db_id,
+            "sc_link": sc_link,
+            "cv_link": cv_link,
+            "columns": preproc_schema.column_names,
+            "tables": preproc_schema.table_names,
+            "table_bounds": preproc_schema.table_bounds,
+            "column_to_table": preproc_schema.column_to_table,
+            "table_to_columns": preproc_schema.table_to_columns,
+            "foreign_keys": preproc_schema.foreign_keys,
+            "foreign_keys_tables": preproc_schema.foreign_keys_tables,
+            "primary_keys": preproc_schema.primary_keys,
         }
 
     def _preprocess_schema(self, schema):
         if schema.db_id in self.preprocessed_schemas:
             return self.preprocessed_schemas[schema.db_id]
-        result = self.preprocess_schema_uncached(schema, self._tokenize,
-                                            self.include_table_name_in_column, self.fix_issue_16_primary_keys)
+        result = self.preprocess_schema_uncached(
+            schema,
+            self._tokenize,
+            self.include_table_name_in_column,
+            self.fix_issue_16_primary_keys,
+        )
         self.preprocessed_schemas[schema.db_id] = result
         return result
 
@@ -653,7 +738,7 @@ class SpiderRatsqlDatasetReader(DatasetReader):
 
     # schema linking, similar to IRNet
     @classmethod
-    def compute_schema_linking(cls,question, column, table):
+    def compute_schema_linking(cls, question, column, table):
         def partial_match(x_list, y_list):
             x_str = " ".join(x_list)
             y_str = " ".join(y_list)
@@ -690,7 +775,7 @@ class SpiderRatsqlDatasetReader(DatasetReader):
         n = 5
         while n > 0:
             for i in range(len(question) - n + 1):
-                n_gram_list = question[i:i + n]
+                n_gram_list = question[i : i + n]
                 n_gram = " ".join(n_gram_list)
                 if len(n_gram.strip()) == 0:
                     continue
@@ -719,7 +804,7 @@ class SpiderRatsqlDatasetReader(DatasetReader):
         return {"q_col_match": q_col_match, "q_tab_match": q_tab_match}
 
     @classmethod
-    def load_tables(cls,paths):
+    def load_tables(cls, paths):
         schemas = {}
         eval_foreign_key_maps = {}
 
@@ -728,13 +813,14 @@ class SpiderRatsqlDatasetReader(DatasetReader):
             for schema_dict in schema_dicts:
                 tables = tuple(
                     Table(
-                        id=i,
-                        name=name.split(),
-                        unsplit_name=name,
-                        orig_name=orig_name,
+                        id=i, name=name.split(), unsplit_name=name, orig_name=orig_name,
                     )
-                    for i, (name, orig_name) in enumerate(zip(
-                        schema_dict['table_names'], schema_dict['table_names_original']))
+                    for i, (name, orig_name) in enumerate(
+                        zip(
+                            schema_dict["table_names"],
+                            schema_dict["table_names_original"],
+                        )
+                    )
                 )
                 columns = tuple(
                     Column(
@@ -745,10 +831,17 @@ class SpiderRatsqlDatasetReader(DatasetReader):
                         orig_name=orig_col_name,
                         type=col_type,
                     )
-                    for i, ((table_id, col_name), (_, orig_col_name), col_type) in enumerate(zip(
-                        schema_dict['column_names'],
-                        schema_dict['column_names_original'],
-                        schema_dict['column_types']))
+                    for i, (
+                        (table_id, col_name),
+                        (_, orig_col_name),
+                        col_type,
+                    ) in enumerate(
+                        zip(
+                            schema_dict["column_names"],
+                            schema_dict["column_names_original"],
+                            schema_dict["column_types"],
+                        )
+                    )
                 )
 
                 # Link columns to tables
@@ -756,27 +849,29 @@ class SpiderRatsqlDatasetReader(DatasetReader):
                     if column.table:
                         column.table.columns.append(column)
 
-                for column_id in schema_dict['primary_keys']:
+                for column_id in schema_dict["primary_keys"]:
                     # Register primary keys
                     column = columns[column_id]
                     column.table.primary_keys.append(column)
 
                 foreign_key_graph = None
-                for source_column_id, dest_column_id in schema_dict['foreign_keys']:
+                for source_column_id, dest_column_id in schema_dict["foreign_keys"]:
                     # Register foreign keys
                     source_column = columns[source_column_id]
                     dest_column = columns[dest_column_id]
                     source_column.foreign_key_for = dest_column
 
-                db_id = schema_dict['db_id']
+                db_id = schema_dict["db_id"]
                 assert db_id not in schemas
-                schemas[db_id] = Schema(db_id, tables, columns, foreign_key_graph, schema_dict)
+                schemas[db_id] = Schema(
+                    db_id, tables, columns, foreign_key_graph, schema_dict
+                )
                 eval_foreign_key_maps[db_id] = cls.build_foreign_key_map(schema_dict)
 
         return schemas, eval_foreign_key_maps
 
     @classmethod
-    def build_foreign_key_map(cls,entry):
+    def build_foreign_key_map(cls, entry):
         cols_orig = entry["column_names_original"]
         tables_orig = entry["table_names_original"]
 
@@ -827,8 +922,10 @@ class SpiderRatsqlDatasetReader(DatasetReader):
         def db_word_match(word, column, table, db_conn):
             cursor = db_conn.cursor()
 
-            p_str = f"select {column} from {table} where {column} like '{word} %' or {column} like '% {word}' or " \
-                    f"{column} like '% {word} %' or {column} like '{word}'"
+            p_str = (
+                f"select {column} from {table} where {column} like '{word} %' or {column} like '% {word}' or "
+                f"{column} like '% {word} %' or {column} like '{word}'"
+            )
             # return False #TODO: fixmes
             try:
                 cursor.execute(p_str)
@@ -859,12 +956,17 @@ class SpiderRatsqlDatasetReader(DatasetReader):
                     assert column.orig_name == "*"
                     continue
 
-                # word is number 
+                # word is number
                 if num_flag:
                     if column.type in ["number", "time"]:  # TODO fine-grained date
                         num_date_match[f"{q_id},{col_id}"] = column.type.upper()
                 else:
-                    ret = db_word_match(word, column.orig_name, column.table.orig_name, schema.connection)
+                    ret = db_word_match(
+                        word,
+                        column.orig_name,
+                        column.table.orig_name,
+                        schema.connection,
+                    )
                     if ret:
                         # print(word, ret)
                         cell_match[f"{q_id},{col_id}"] = CELL_MATCH_FLAG
@@ -873,30 +975,33 @@ class SpiderRatsqlDatasetReader(DatasetReader):
         return cv_link
 
     @classmethod
-    def preprocess_schema_uncached(cls, schema,
-                                tokenize_func,
-                                include_table_name_in_column,
-                                fix_issue_16_primary_keys):
+    def preprocess_schema_uncached(
+        cls,
+        schema,
+        tokenize_func,
+        include_table_name_in_column,
+        fix_issue_16_primary_keys,
+    ):
 
         r = PreprocessedSchema()
 
         last_table_id = None
         for i, column in enumerate(schema.columns):
-            col_toks = tokenize_func(
-                column.name, column.unsplit_name)
+            col_toks = tokenize_func(column.name, column.unsplit_name)
 
             # assert column.type in ["text", "number", "time", "boolean", "others"]
-            type_tok = f'<type: {column.type}>'
+            type_tok = f"<type: {column.type}>"
 
             column_name = [type_tok] + col_toks
 
             if include_table_name_in_column:
                 if column.table is None:
-                    table_name = ['<any-table>']
+                    table_name = ["<any-table>"]
                 else:
                     table_name = tokenize_func(
-                        column.table.name, column.table.unsplit_name)
-                column_name += ['<table-sep>'] + table_name
+                        column.table.name, column.table.unsplit_name
+                    )
+                column_name += ["<table-sep>"] + table_name
             r.column_names.append(column_name)
 
             table_id = None if column.table is None else column.table.id
@@ -910,27 +1015,28 @@ class SpiderRatsqlDatasetReader(DatasetReader):
 
             if column.foreign_key_for is not None:
                 r.foreign_keys[str(column.id)] = column.foreign_key_for.id
-                r.foreign_keys_tables[str(column.table.id)].add(column.foreign_key_for.table.id)
+                r.foreign_keys_tables[str(column.table.id)].add(
+                    column.foreign_key_for.table.id
+                )
 
         r.table_bounds.append(len(schema.columns))
         assert len(r.table_bounds) == len(schema.tables) + 1
 
         for i, table in enumerate(schema.tables):
-            table_toks = tokenize_func(
-                table.name, table.unsplit_name)
+            table_toks = tokenize_func(table.name, table.unsplit_name)
             r.table_names.append(table_toks)
 
         last_table = schema.tables[-1]
 
         r.foreign_keys_tables = to_dict_with_sorted_values(r.foreign_keys_tables)
-        r.primary_keys = [
-            column.id
-            for table in schema.tables
-            for column in table.primary_keys
-        ] if fix_issue_16_primary_keys else [
-            column.id
-            for column in last_table.primary_keys
-            for table in schema.tables
-        ]
+        r.primary_keys = (
+            [column.id for table in schema.tables for column in table.primary_keys]
+            if fix_issue_16_primary_keys
+            else [
+                column.id
+                for column in last_table.primary_keys
+                for table in schema.tables
+            ]
+        )
 
         return r

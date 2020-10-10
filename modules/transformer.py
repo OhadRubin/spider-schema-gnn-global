@@ -4,6 +4,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 # import entmax
 
 # Adapted from
@@ -66,6 +67,7 @@ def relative_attention_logits(query, key, relation):
     # and squeeze
     # [batch, heads, num queries, num kvs]
 
+
 def relative_attention_values(weight, value, relation):
     # In this version, relation vectors are shared across heads.
     # weight: [batch, heads, num queries, num kvs].
@@ -97,15 +99,15 @@ def clones(module_fn, N):
 def attention(query, key, value, mask=None, dropout=None):
     "Compute 'Scaled Dot Product Attention'"
     d_k = query.size(-1)
-    scores = torch.matmul(query, key.transpose(-2, -1)) \
-             / math.sqrt(d_k)
+    scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
     if mask is not None:
         scores = scores.masked_fill(mask == 0, -1e9)
-    p_attn = F.softmax(scores, dim = -1)
+    p_attn = F.softmax(scores, dim=-1)
     if dropout is not None:
         p_attn = dropout(p_attn)
     # return torch.matmul(p_attn, value), scores.squeeze(1).squeeze(1)
     return torch.matmul(p_attn, value), p_attn
+
 
 # def sparse_attention(query, key, value, alpha, mask=None, dropout=None):
 #     "Compute 'Scaled Dot Product Attention'"
@@ -137,39 +139,40 @@ class MultiHeadedAttention(nn.Module):
         self.linears = clones(lambda: nn.Linear(d_model, d_model), 4)
         self.attn = None
         self.dropout = nn.Dropout(p=dropout)
-        
+
     def forward(self, query, key, value, mask=None):
         "Implements Figure 2"
         if mask is not None:
             # Same mask applied to all h heads.
             mask = mask.unsqueeze(1)
         nbatches = query.size(0)
-        
-        # 1) Do all the linear projections in batch from d_model => h x d_k 
-        query, key, value = \
-            [l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
-             for l, x in zip(self.linears, (query, key, value))]
-        
-        # 2) Apply attention on all the projected vectors in batch. 
-        x, self.attn = attention(query, key, value, mask=mask, 
-                                 dropout=self.dropout)
-        
-        # 3) "Concat" using a view and apply a final linear. 
-        x = x.transpose(1, 2).contiguous() \
-             .view(nbatches, -1, self.h * self.d_k)
+
+        # 1) Do all the linear projections in batch from d_model => h x d_k
+        query, key, value = [
+            l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
+            for l, x in zip(self.linears, (query, key, value))
+        ]
+
+        # 2) Apply attention on all the projected vectors in batch.
+        x, self.attn = attention(query, key, value, mask=mask, dropout=self.dropout)
+
+        # 3) "Concat" using a view and apply a final linear.
+        x = x.transpose(1, 2).contiguous().view(nbatches, -1, self.h * self.d_k)
         if query.dim() == 3:
             x = x.squeeze(1)
         return self.linears[-1](x)
 
 
 # Adapted from The Annotated Transformer
-def attention_with_relations(query, key, value, relation_k, relation_v, mask=None, dropout=None):
+def attention_with_relations(
+    query, key, value, relation_k, relation_v, mask=None, dropout=None
+):
     "Compute 'Scaled Dot Product Attention'"
     d_k = query.size(-1)
     scores = relative_attention_logits(query, key, relation_k)
     if mask is not None:
         scores = scores.masked_fill(mask == 0, -1e9)
-    p_attn_orig = F.softmax(scores, dim = -1)
+    p_attn_orig = F.softmax(scores, dim=-1)
     if dropout is not None:
         p_attn = dropout(p_attn_orig)
     return relative_attention_values(p_attn, value, relation_v), p_attn_orig
@@ -194,20 +197,17 @@ class PointerWithRelations(nn.Module):
             mask = mask.unsqueeze(0)
         nbatches = query.size(0)
 
-        query, key, value = \
-            [l(x).view(nbatches, -1, 1, self.hidden_size).transpose(1, 2)
-             for l, x in zip(self.linears, (query, key, value))]
+        query, key, value = [
+            l(x).view(nbatches, -1, 1, self.hidden_size).transpose(1, 2)
+            for l, x in zip(self.linears, (query, key, value))
+        ]
 
         _, self.attn = attention_with_relations(
-            query,
-            key,
-            value,
-            relation_k,
-            relation_v,
-            mask=mask,
-            dropout=self.dropout)
+            query, key, value, relation_k, relation_v, mask=mask, dropout=self.dropout
+        )
 
-        return self.attn[0,0]
+        return self.attn[0, 0]
+
 
 # Adapted from The Annotated Transformer
 class MultiHeadedAttentionWithRelations(nn.Module):
@@ -236,30 +236,26 @@ class MultiHeadedAttentionWithRelations(nn.Module):
         nbatches = query.size(0)
 
         # 1) Do all the linear projections in batch from d_model => h x d_k
-        query, key, value = \
-            [l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
-             for l, x in zip(self.linears, (query, key, value))]
+        query, key, value = [
+            l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
+            for l, x in zip(self.linears, (query, key, value))
+        ]
 
         # 2) Apply attention on all the projected vectors in batch.
         # x shape: [batch, heads, num queries, depth]
         x, self.attn = attention_with_relations(
-            query,
-            key,
-            value,
-            relation_k,
-            relation_v,
-            mask=mask,
-            dropout=self.dropout)
+            query, key, value, relation_k, relation_v, mask=mask, dropout=self.dropout
+        )
 
         # 3) "Concat" using a view and apply a final linear.
-        x = x.transpose(1, 2).contiguous() \
-             .view(nbatches, -1, self.h * self.d_k)
+        x = x.transpose(1, 2).contiguous().view(nbatches, -1, self.h * self.d_k)
         return self.linears[-1](x)
 
 
 # Adapted from The Annotated Transformer
 class Encoder(nn.Module):
     "Core encoder is a stack of N layers"
+
     def __init__(self, layer, layer_size, N, tie_layers=False):
         super(Encoder, self).__init__()
         if tie_layers:
@@ -268,9 +264,9 @@ class Encoder(nn.Module):
         else:
             self.layers = clones(layer, N)
         self.norm = nn.LayerNorm(layer_size)
-         
-         # TODO initialize using xavier
-        
+
+        # TODO initialize using xavier
+
     def forward(self, x, relation, mask):
         "Pass the input (and mask) through each layer in turn."
         for layer in self.layers:
@@ -284,6 +280,7 @@ class SublayerConnection(nn.Module):
     A residual connection followed by a layer norm.
     Note for code simplicity the norm is first as opposed to last.
     """
+
     def __init__(self, size, dropout):
         super(SublayerConnection, self).__init__()
         self.norm = nn.LayerNorm(size)
@@ -297,6 +294,7 @@ class SublayerConnection(nn.Module):
 # Adapted from The Annotated Transformer
 class EncoderLayer(nn.Module):
     "Encoder is made up of self-attn and feed forward (defined below)"
+
     def __init__(self, size, self_attn, feed_forward, num_relation_kinds, dropout):
         super(EncoderLayer, self).__init__()
         self.self_attn = self_attn
@@ -312,13 +310,16 @@ class EncoderLayer(nn.Module):
         relation_k = self.relation_k_emb(relation)
         relation_v = self.relation_v_emb(relation)
 
-        x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, relation_k, relation_v, mask))
+        x = self.sublayer[0](
+            x, lambda x: self.self_attn(x, x, x, relation_k, relation_v, mask)
+        )
         return self.sublayer[1](x, self.feed_forward)
 
 
 # Adapted from The Annotated Transformer
 class PositionwiseFeedForward(nn.Module):
     "Implements FFN equation."
+
     def __init__(self, d_model, d_ff, dropout=0.1):
         super(PositionwiseFeedForward, self).__init__()
         self.w_1 = nn.Linear(d_model, d_ff)
@@ -327,4 +328,3 @@ class PositionwiseFeedForward(nn.Module):
 
     def forward(self, x):
         return self.w_2(self.dropout(F.relu(self.w_1(x))))
-

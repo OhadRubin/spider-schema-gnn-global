@@ -27,15 +27,18 @@ class SpiderRerankDatasetReader(SpiderDatasetReader):
     Not that if sampling is required, `lazy` should be False, so that this reader will be called at each step (this
     could probably be optimized better)
     """
-    def __init__(self,
-                 sub_graphs_candidates_path: str,
-                 max_candidates: int,
-                 sub_sample_candidates: bool,
-                 lazy: bool = False,
-                 unique_sub_graphs: bool = True,
-                 question_token_indexers: Dict[str, TokenIndexer] = None,
-                 keep_if_unparsable: bool = True,
-                 tables_file: str = None):
+
+    def __init__(
+        self,
+        sub_graphs_candidates_path: str,
+        max_candidates: int,
+        sub_sample_candidates: bool,
+        lazy: bool = False,
+        unique_sub_graphs: bool = True,
+        question_token_indexers: Dict[str, TokenIndexer] = None,
+        keep_if_unparsable: bool = True,
+        tables_file: str = None,
+    ):
         """
         :param sub_graphs_candidates_path: path to the created json file holding the candidates for each example
         :param max_candidates: limit the number of candidates returned per example
@@ -51,7 +54,7 @@ class SpiderRerankDatasetReader(SpiderDatasetReader):
         self._sub_graphs_candidates = []
         self._max_candidates = max_candidates
         self._sub_sample_candidates = sub_sample_candidates
-        self._query_token_indexers = {'query_tokens': SingleIdTokenIndexer()}
+        self._query_token_indexers = {"query_tokens": SingleIdTokenIndexer()}
 
     @overrides
     def _read(self, file_path: str):
@@ -62,7 +65,9 @@ class SpiderRerankDatasetReader(SpiderDatasetReader):
         yield from self._read_examples_file(file_path)
 
     @overrides
-    def process_instance(self, instance: Instance, index: int = None, candidates: List = None):
+    def process_instance(
+        self, instance: Instance, index: int = None, candidates: List = None
+    ):
         """
         This function is called after the instance was loaded with the basic dataset reader, and adds the query
         candidates data.
@@ -73,25 +78,28 @@ class SpiderRerankDatasetReader(SpiderDatasetReader):
             return instance
 
         fields = instance.fields
-        world: SpiderWorld = fields['world'].metadata
-        del fields['valid_actions']
-        if 'action_sequence' in fields:
-            del fields['action_sequence']
+        world: SpiderWorld = fields["world"].metadata
+        del fields["valid_actions"]
+        if "action_sequence" in fields:
+            del fields["action_sequence"]
         correct_sub_graph = set()
         # Get the correct sub-graph (our supervision)
         if world.query is not None:
-            
+
             for token in world.query:
                 if token in world.entities_names:
                     correct_sub_graph.add(token)
-#         else:
-            
+        #         else:
 
         original_candidates = candidates or self._sub_graphs_candidates[index]
         if self._sub_sample_candidates:
             shuffled_candidates = list(original_candidates)
             # make sure there is a correct candidate, so put them on top
-            shuffled_candidates = sorted(shuffled_candidates, key=lambda x: (x['correct'], random()), reverse=True)
+            shuffled_candidates = sorted(
+                shuffled_candidates,
+                key=lambda x: (x["correct"], random()),
+                reverse=True,
+            )
         else:
             shuffled_candidates = original_candidates
 
@@ -99,24 +107,30 @@ class SpiderRerankDatasetReader(SpiderDatasetReader):
         label_fields = []
         sub_graphs_label_fields = []
 
-        entities_names = [ent_key_to_name(e) for e in world.db_context.knowledge_graph.entities
-                          if e.startswith('column:') or e.startswith('table:')]
+        entities_names = [
+            ent_key_to_name(e)
+            for e in world.db_context.knowledge_graph.entities
+            if e.startswith("column:") or e.startswith("table:")
+        ]
 
         unique_sub_graphs = set()
         kept_candidates = []
 
         # go through the candidate queries and extract their sub-graph
         for candidate in shuffled_candidates:
-            if self._sub_sample_candidates and len(kept_candidates) == self._max_candidates:
+            if (
+                self._sub_sample_candidates
+                and len(kept_candidates) == self._max_candidates
+            ):
                 break
 
-            query_tokens = candidate['query'].split()
+            query_tokens = candidate["query"].split()
 
             sub_graph = set()
             candidate_entities = []
             for i, token in enumerate(query_tokens):
                 ent_id = -1
-                potential_ent = token.replace('.', '@')
+                potential_ent = token.replace(".", "@")
                 if potential_ent in entities_names:
                     sub_graph.add(potential_ent)
                     ent_id = world.entities_names[potential_ent]
@@ -135,13 +149,19 @@ class SpiderRerankDatasetReader(SpiderDatasetReader):
                 sub_graphs.append(sub_graph)
             kept_candidates.append(candidate)
 
-            if candidate['correct'] is not None:
-                label_fields.append(LabelField(int(candidate['correct']), skip_indexing=True))
-                sub_graphs_label_fields.append(LabelField(int(sub_graph == correct_sub_graph), skip_indexing=True))
+            if candidate["correct"] is not None:
+                label_fields.append(
+                    LabelField(int(candidate["correct"]), skip_indexing=True)
+                )
+                sub_graphs_label_fields.append(
+                    LabelField(int(sub_graph == correct_sub_graph), skip_indexing=True)
+                )
 
         # check if we should return all examples (even when no correct answers found)
         if not self._keep_if_unparsable:
-            if self._unique_sub_graphs and not any([sg == correct_sub_graph for sg in sub_graphs]):
+            if self._unique_sub_graphs and not any(
+                [sg == correct_sub_graph for sg in sub_graphs]
+            ):
                 return None
             if not self._unique_sub_graphs and not any([l.label for l in label_fields]):
                 return None
@@ -157,12 +177,12 @@ class SpiderRerankDatasetReader(SpiderDatasetReader):
             sub_graph_candidates.append(ListField(entities_ids))
 
         # we give both the subgraphs and the actual query candidates
-        fields['sub_graphs'] = ListField(sub_graph_candidates)
-        fields['candidates'] = MetadataField(kept_candidates)
+        fields["sub_graphs"] = ListField(sub_graph_candidates)
+        fields["candidates"] = MetadataField(kept_candidates)
 
         if sub_graphs_label_fields:
-            fields['sub_graphs_labels'] = ListField(sub_graphs_label_fields)
+            fields["sub_graphs_labels"] = ListField(sub_graphs_label_fields)
         if label_fields:
-            fields['candidates_labels'] = ListField(label_fields)
+            fields["candidates_labels"] = ListField(label_fields)
 
         return Instance(fields)

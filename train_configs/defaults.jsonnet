@@ -80,7 +80,7 @@ local dataset_path = "dataset/";
   },
   "trainer": {
     "num_epochs": 100,
-    "cuda_device": std.extVar('gpu'),
+    //"cuda_device": std.extVar('gpu'),
     "patience": 50,
     "validation_metric": "+sql_match",
     "optimizer": {

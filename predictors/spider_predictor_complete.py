@@ -21,15 +21,19 @@ class SpiderParserPredictor(Predictor):
 
         self._num_rank_candidates = 10
 
-        archive_path = 'experiments/experiment_rerank'
+        archive_path = "experiments/experiment_rerank"
 
-        reranker_archive = load_archive(archive_path, weights_file=archive_path + '/weights.th')
+        reranker_archive = load_archive(
+            archive_path, weights_file=archive_path + "/weights.th"
+        )
         self._reranker_model: SpiderReranker = reranker_archive.model
         self._reranker_model.eval()
 
         config = reranker_archive.config.duplicate()
         dataset_reader_params = config["dataset_reader"]
-        self._reranker_dataset_reader: SpiderRerankDatasetReader = DatasetReader.from_params(dataset_reader_params)
+        self._reranker_dataset_reader: SpiderRerankDatasetReader = DatasetReader.from_params(
+            dataset_reader_params
+        )
         self._reranker_dataset_reader._sub_sample_candidates = False
         self._reranker_dataset_reader._unique_sub_graphs = False
         self._reranker_dataset_reader._keep_if_unparsable = True
@@ -41,22 +45,24 @@ class SpiderParserPredictor(Predictor):
         json_output = {}
         predicted_sql_query = None
 
-        del instance.fields['action_sequence']
+        del instance.fields["action_sequence"]
 
         outputs = self._model.forward_on_instance(instance)
 
-        candidates = outputs['candidates'][:self._num_rank_candidates]
+        candidates = outputs["candidates"][: self._num_rank_candidates]
 
-        rerank_instance = self._reranker_dataset_reader.process_instance(instance, candidates=candidates)
+        rerank_instance = self._reranker_dataset_reader.process_instance(
+            instance, candidates=candidates
+        )
 
         if rerank_instance is not None:
             rerank_outputs = self._reranker_model.forward_on_instance(rerank_instance)
-            predicted_sql_query = rerank_outputs['candidates'][0]
+            predicted_sql_query = rerank_outputs["candidates"][0]
 
         if not predicted_sql_query:
             # line must not be empty for the evaluator to consider it
-            predicted_sql_query = 'NO PREDICTION'
-        json_output['predicted_sql_query'] = predicted_sql_query
+            predicted_sql_query = "NO PREDICTION"
+        json_output["predicted_sql_query"] = predicted_sql_query
         print(SpiderParserPredictor.count, predicted_sql_query)
         SpiderParserPredictor.count += 1
         return sanitize(json_output)
@@ -67,4 +73,4 @@ class SpiderParserPredictor(Predictor):
         If you don't want your outputs in JSON-lines format
         you can override this function to output them differently.
         """
-        return outputs['predicted_sql_query'] + "\n"
+        return outputs["predicted_sql_query"] + "\n"

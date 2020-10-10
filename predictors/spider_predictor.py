@@ -7,6 +7,7 @@ from allennlp.predictors.predictor import Predictor
 from dataset_readers.spider import *
 from models.semantic_parsing.spider_parser import *
 
+
 @Predictor.register("spider")
 class WikiTablesParserPredictor(Predictor):
     def __init__(self, model: Model, dataset_reader: DatasetReader) -> None:
@@ -17,11 +18,11 @@ class WikiTablesParserPredictor(Predictor):
         json_output = {}
         outputs = self._model.forward_on_instance(instance)
         # print(outputs)
-        predicted_sql_query = outputs['predicted_sql_query'].replace('\n', ' ')
-        if predicted_sql_query == '':
+        predicted_sql_query = outputs["predicted_sql_query"].replace("\n", " ")
+        if predicted_sql_query == "":
             # line must not be empty for the evaluator to consider it
-            predicted_sql_query = 'NO PREDICTION'
-        json_output['predicted_sql_query'] = predicted_sql_query
+            predicted_sql_query = "NO PREDICTION"
+        json_output["predicted_sql_query"] = predicted_sql_query
         return sanitize(json_output)
 
     @overrides
@@ -30,4 +31,4 @@ class WikiTablesParserPredictor(Predictor):
         If you don't want your outputs in JSON-lines format
         you can override this function to output them differently.
         """
-        return outputs['predicted_sql_query'] + "\n"
+        return outputs["predicted_sql_query"] + "\n"

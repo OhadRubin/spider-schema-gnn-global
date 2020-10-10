@@ -4,10 +4,18 @@ from copy import deepcopy
 from parsimonious import Grammar
 from parsimonious.exceptions import ParseError
 
-from semparse.contexts.spider_context_utils import format_grammar_string, initialize_valid_actions, SqlVisitor
+from semparse.contexts.spider_context_utils import (
+    format_grammar_string,
+    initialize_valid_actions,
+    SqlVisitor,
+)
 from semparse.contexts.spider_db_context import SpiderDBContext
-from semparse.contexts.spider_db_grammar import GRAMMAR_DICTIONARY, update_grammar_with_tables, \
-    update_grammar_to_be_table_names_free, update_grammar_flip_joins
+from semparse.contexts.spider_db_grammar import (
+    GRAMMAR_DICTIONARY,
+    update_grammar_with_tables,
+    update_grammar_to_be_table_names_free,
+    update_grammar_flip_joins,
+)
 
 
 class SpiderWorld:
@@ -15,7 +23,12 @@ class SpiderWorld:
     World representation for spider dataset.
     """
 
-    def __init__(self, db_context: SpiderDBContext, query: Optional[List[str]], allow_alias: bool = False) -> None:
+    def __init__(
+        self,
+        db_context: SpiderDBContext,
+        query: Optional[List[str]],
+        allow_alias: bool = False,
+    ) -> None:
         self.db_id = db_context.db_id
         self.allow_alias = allow_alias
 
@@ -27,17 +40,18 @@ class SpiderWorld:
         # keep a list of entities names as they are given in sql queries
         self.entities_names = {}
         for i, entity in enumerate(self.db_context.knowledge_graph.entities):
-            parts = entity.split(':')
-            if parts[0] in ['table', 'string']:
+            parts = entity.split(":")
+            if parts[0] in ["table", "string"]:
                 self.entities_names[parts[1]] = i
             else:
                 _, _, table_name, column_name = parts
-                self.entities_names[f'{table_name}@{column_name}'] = i
+                self.entities_names[f"{table_name}@{column_name}"] = i
         self.valid_actions = []
         self.valid_actions_flat = []
 
-    def get_action_sequence_and_all_actions(self,
-                                            allow_aliases: bool = False) -> Tuple[List[str], List[str]]:
+    def get_action_sequence_and_all_actions(
+        self, allow_aliases: bool = False
+    ) -> Tuple[List[str], List[str]]:
         grammar_with_context = deepcopy(self.base_grammar_dictionary)
         if not allow_aliases:
             update_grammar_to_be_table_names_free(grammar_with_context)
@@ -66,9 +80,9 @@ class SpiderWorld:
 
         return action_sequence, sorted_actions
 
-    def get_all_actions(self, schema,
-                        flip_joins: bool,
-                        allow_aliases: bool) -> Tuple[List[str], List[str]]:
+    def get_all_actions(
+        self, schema, flip_joins: bool, allow_aliases: bool
+    ) -> Tuple[List[str], List[str]]:
         grammar_with_context = deepcopy(self.base_grammar_dictionary)
         if not allow_aliases:
             update_grammar_to_be_table_names_free(grammar_with_context)
@@ -90,7 +104,7 @@ class SpiderWorld:
         return sorted_actions
 
     def is_global_rule(self, rhs: str) -> bool:
-        rhs = rhs.strip('[] ')
+        rhs = rhs.strip("[] ")
         if rhs[0] != '"':
             return True
         return rhs.strip('"') not in self.entities_names
@@ -103,9 +117,9 @@ class SpiderWorld:
         scores = [0 for _ in range(len(self.db_context.knowledge_graph.entities))]
 
         for i, entity in enumerate(self.db_context.knowledge_graph.entities):
-            parts = entity.split(':')
-            if parts[0] == 'column':
-                name = parts[2] + '@' + parts[3]
+            parts = entity.split(":")
+            if parts[0] == "column":
+                name = parts[2] + "@" + parts[3]
             else:
                 name = parts[-1]
             if name in oracle_entities:
@@ -120,8 +134,8 @@ class SpiderWorld:
             # default is padding
             mapping[action_index] = -1
 
-            action = action.split(" -> ")[1].strip('[]')
-            action_stripped = action.strip('\"')
+            action = action.split(" -> ")[1].strip("[]")
+            action_stripped = action.strip('"')
             if action[0] != '"' or action_stripped not in self.entities_names:
                 continue
 
@@ -131,13 +145,13 @@ class SpiderWorld:
 
     def get_query_without_table_hints(self):
         if not self.query:
-            return ''
+            return ""
         toks = []
         for tok in self.query:
-            if '@' in tok:
-                parts = tok.split('@')
-                if '.' in parts[0]:
-                    toks.append(parts[0].split('.')[0] + '.' + parts[1])
+            if "@" in tok:
+                parts = tok.split("@")
+                if "." in parts[0]:
+                    toks.append(parts[0].split(".")[0] + "." + parts[1])
                 else:
                     toks.append(parts[1])
             else:

@@ -17,8 +17,8 @@ class SpiderCandidatesParserPredictor(Predictor):
     def predict_instance(self, instance: Instance) -> JsonDict:
         if instance:
             outputs = self._model.forward_on_instance(instance)
-            if 'candidates' in outputs:
-                return sanitize(outputs['candidates'])
+            if "candidates" in outputs:
+                return sanitize(outputs["candidates"])
             else:
                 return sanitize([])
         else:

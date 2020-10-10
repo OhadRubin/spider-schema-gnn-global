@@ -68,16 +68,11 @@ local num_epochs = 125;
         "question_embedder": {
         "token_embedders":{
           "tokens":{
-                        "type":"pretrained_transformer",
-                        "model_name":"bert-base-uncased",
-          },
-
-                          },
-        
-
-
-
+              "type":"pretrained_transformer",
+              "model_name":"bert-base-uncased",
             },
+          },
+        },
       "action_embedding_dim": 300,
       // "action_embedding_dim": 768,
       // "decoder_use_graph_entities": true,
@@ -134,8 +129,9 @@ local num_epochs = 125;
   },
 
     "num_gradient_accumulation_steps" : 4,
-    // "num_serialized_models_to_keep": 
     "checkpointer": {"num_serialized_models_to_keep": 2},
+
+    // "num_serialized_models_to_keep": 
   }
 }
 
