@@ -1,62 +1,85 @@
 local dataset_path = "dataset/";
-
+local cache_path = "cache/seq2seq/exp1";
+local max_instances = null;
+local gradient_acum = 16;
+local batch_size = 1;
+local max_steps = 90000;
+local examples = 6600;
+local num_epochs = std.floor((max_steps*batch_size*gradient_acum)/examples);
+local model_name = "facebook/bart-large";
+// local max_instances = 510;
 {
-  "random_seed": 5,
-  "numpy_seed": 5,
-  "pytorch_seed": 5,
+  // "random_seed": 5,
+  // "numpy_seed": 5,
+  // "pytorch_seed": 5,
   "dataset_reader": {
-    "type": "spider",
+    "type": "spider_ratsql",
     "tables_file": dataset_path + "tables.json",
     "dataset_path": dataset_path + "database",
     "lazy": false,
-    "cache_directory": "cache/train",
+    "question_token_indexers":{
+            "tokens":{
+              "type":"pretrained_transformer",
+                    "model_name":model_name,
+            },
+
+              },
+    "cache_directory": cache_path + "train",
     "keep_if_unparsable": false,
-    // "max_instances": null,
-    "max_instances": 10,
+    "max_instances": max_instances,
   },
   "validation_dataset_reader": {
-    "type": "spider",
+    "type": "spider_ratsql",
+    "question_token_indexers":{
+            "tokens":{
+              "type":"pretrained_transformer",
+              "model_name": model_name,
+            },
+      },
     "tables_file": dataset_path + "tables.json",
     "dataset_path": dataset_path + "database",
-    "cache_directory": "cache/val",
+    "cache_directory": cache_path + "val",
     "lazy": false,
     "keep_if_unparsable": true,
-    // "max_instances": null,
-    "max_instances": 10,
+    "max_instances": max_instances,
   },
   "train_data_path": dataset_path + "train_spider.json",
   "validation_data_path": dataset_path + "dev.json",
   "model": {
     "type": "spider",
-    "world_encoder":{
-      "type":"gnn",
-        "encoder": {
-          "type": "lstm",
-          "input_size": 400,
-          "hidden_size": 400,
-          "bidirectional": true,
-          "num_layers": 1
-        },
-        "entity_encoder": {
-            "type": "boe",
-            "embedding_dim": 200,
-            "averaged": true
-          },
-        "question_embedder": {"token_embedders":{
-              "tokens": {
-                "type": "embedding",
-                "embedding_dim": 200,
-                "trainable": true
-              }
-        },
-
+    "schema_encoder":{
+      "type":"ratsql",
+        // "encoder": {
+        //   "type": "lstm",
+        //   // "input_size": 1536,
+        //   // "hidden_size": 1536,
+        //   "input_size": 400,
+        //   "hidden_size": 400,
+          
+        //   "bidirectional": true,
+        //   "num_layers": 1
+        // },
+        // "entity_encoder": {
+        //     "type": "boe",
+        //     "embedding_dim": 200,
+        //     // "embedding_dim": 768,
+        //     "averaged": true
+        //   },
+        "question_embedder": {
+        "token_embedders":{
+          "tokens":{
+              "type":"pretrained_transformer",
+              "model_name":model_name,
             },
-      "action_embedding_dim": 200,
-      "decoder_use_graph_entities": true,
-      "gnn_timesteps": 3,
-      "pruning_gnn_timesteps": 3,
-      "parse_sql_on_decoding": true,
-      "use_neighbor_similarity_for_linking": true,
+          },
+        },
+      "action_embedding_dim": 300,
+      // "action_embedding_dim": 768,
+      // "decoder_use_graph_entities": true,
+      // "gnn_timesteps": 3,
+      // "pruning_gnn_timesteps": 3,
+      "parse_sql_on_decoding": false,
+      // "use_neighbor_similarity_for_linking": true,
       "dropout": 0.5,
     },
     "dataset_path": dataset_path,
@@ -70,25 +93,46 @@ local dataset_path = "dataset/";
     "dropout": 0.5
   },
   "data_loader": {
-    // "type": "basic",
-    "batch_size" : 15
-    // "batch_sampler" :{}
-    
+    "batch_size" : batch_size,
   },
   "validation_data_loader": {
     "batch_size" : 1,
   },
   "trainer": {
-    "num_epochs": 100,
-    //"cuda_device": std.extVar('gpu'),
-    "patience": 50,
+    "num_epochs": num_epochs,
+    // "cuda_device": std.extVar('gpu'),
+    "cuda_device": 0,
+    // "patience": 50,
     "validation_metric": "+sql_match",
-    "optimizer": {
-      "type": "adam",
-      "lr": 0.001,
-      "weight_decay": 5e-4
-    },
-    // "num_serialized_models_to_keep": 
+    // "optimizer": {
+    //   "type": "adam",
+    //   "lr": 7.44e-4,
+    //   // "lr": 0.0001,
+    //   "parameter_groups": [
+    //       [["question_embedder"], {"lr": 3e-6}]
+    //       ],
+    //   "weight_decay": 5e-4
+    // },
+        "optimizer": {
+                      "type": "adam",
+                      "lr": 0.5*0.5*7.44e-4,
+                      // "lr": 0.0001,
+                      "parameter_groups": [
+                          [["question_embedder"], {"lr": 3e-6}]
+                          ],
+                      // "weight_decay": 5e-4
+                    },
+  "learning_rate_scheduler":{
+
+                    "type": "polynomial_decay",
+                    "warmup_steps": std.floor(max_steps/20),
+                    "power": 2.0,
+  },
+
+    "num_gradient_accumulation_steps" : 4,
     "checkpointer": {"num_serialized_models_to_keep": 2},
+
+    // "num_serialized_models_to_keep": 
   }
 }
+

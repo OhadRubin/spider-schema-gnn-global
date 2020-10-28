@@ -1,36 +1,39 @@
 {
-  "dataset_reader": {
-    "cache_directory": "cache/value_link/temp9train",
-    "dataset_path": "dataset/database",
-    "keep_if_unparsable": false,
-    "lazy": false,
-    "max_instances": null,
-    "question_token_indexers": {
-      "tokens": {
-        "model_name": "bert-base-uncased",
-        "type": "pretrained_transformer"
-      }
-    },
-    "tables_file": "dataset/tables.json",
-    "type": "spider_ratsql"
-  },
   "validation_dataset_reader": {
-    "cache_directory": "cache/value_link/temp9val",
+    "cache_directory": "cache/seq2seq/exp1val",
     "dataset_path": "dataset/database",
     "keep_if_unparsable": true,
     "lazy": false,
     "max_instances": null,
     "question_token_indexers": {
       "tokens": {
-        "model_name": "bert-base-uncased",
+        "model_name": "facebook/bart-large",
         "type": "pretrained_transformer"
       }
     },
     "tables_file": "dataset/tables.json",
     "type": "spider_ratsql"
   },
-  "train_data_path": "dataset/train_spider.json",
+  "validation_data_loader": {
+    "batch_size": 1
+  },
   "validation_data_path": "dataset/dev.json",
+  "train_data_path": "dataset/train_spider.json",
+  "dataset_reader": {
+    "cache_directory": "cache/seq2seq/exp1train",
+    "dataset_path": "dataset/database",
+    "keep_if_unparsable": false,
+    "lazy": false,
+    "max_instances": null,
+    "question_token_indexers": {
+      "tokens": {
+        "model_name": "facebook/bart-large",
+        "type": "pretrained_transformer"
+      }
+    },
+    "tables_file": "dataset/tables.json",
+    "type": "spider_ratsql"
+  },
   "model": {
     "dataset_path": "dataset/",
     "decoder_beam_search": {
@@ -51,7 +54,7 @@
       "question_embedder": {
         "token_embedders": {
           "tokens": {
-            "model_name": "bert-base-uncased",
+            "model_name": "facebook/bart-large",
             "type": "pretrained_transformer"
           }
         }
@@ -61,11 +64,8 @@
     "training_beam_size": 1,
     "type": "spider"
   },
-  "validation_data_loader": {
-    "batch_size": 1
-  },
   "data_loader": {
-    "batch_size": 6
+    "batch_size": 1
   },
   "trainer": {
     "checkpointer": {
@@ -77,10 +77,10 @@
       "type": "polynomial_decay",
       "warmup_steps": 4500
     },
-    "num_epochs": 125,
+    "num_epochs": 218,
     "num_gradient_accumulation_steps": 4,
     "optimizer": {
-      "lr": 0.000744,
+      "lr": 0.000186,
       "parameter_groups": [
         [
           [

@@ -466,7 +466,7 @@ class SpiderRatsqlDatasetReader(DatasetReader):
             if mask:
                 offsets.append([start_offset, len(enc_field_list) - 1])
 
-        if len(enc_field_list) > 512:
+        if len(enc_field_list) > 700:
             return None
 
         # c = parser_utils.batched_span_select(torch.tensor([[c.text_id] for c in enc_field_list]).unsqueeze(0), torch.tensor(offsets).unsqueeze(0))

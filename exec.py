@@ -52,7 +52,7 @@ if __name__ == "__main__":
     default_partials = []
     partials = args.partials
     partials.extend(default_partials)
-    default_config_file = "train_configs/default.jsonnet"
+    default_config_file = "train_configs/defaults.jsonnet"
     # default_config_file = 'train_configs/defaults.jsonnet'
 
     experiment_name_parts = []

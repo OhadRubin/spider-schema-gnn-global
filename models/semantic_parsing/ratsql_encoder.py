@@ -106,7 +106,7 @@ class RatsqlEncoder(SchemaEncoder):
         # self._question_embedder = PretrainedTransformerMismatchedEmbedder("bert-base-uncased")
         # self._tokenizer = PretrainedTransformerMismatchedIndexer("bert-base-uncased")
         # self._question_embedder = PretrainedTransformerEmbedder("bert-base-uncased")
-        self._tokenizer = PretrainedTransformerIndexer("bert-base-uncased")._tokenizer
+        # self._tokenizer = PretrainedTransformerIndexer("bert-base-uncased")._tokenizer
         # self._question_embedder = PretrainedTransformerEmbedder("distilbert-base-uncased")
         num_layers = 8
         num_heads = 8
